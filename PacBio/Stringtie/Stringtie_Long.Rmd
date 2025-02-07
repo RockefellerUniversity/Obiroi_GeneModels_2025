@@ -1,0 +1,27 @@
+---
+title: "Stringtie from Pacbio"
+output: html_document
+date: "2025-02-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Run stringtie from output from Pacbio pipeline 
+
+```{r}
+bam <- "/rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/Kip_Long_BothBatches/workflow_data/Sample1_pbmm2.bam"
+gtfRef <- "/rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/kip_longAndShort_gtf/Obiroi_BRCDK__5_4.gtf.gz"
+gtfTempRef <- gsub("\\.gz","",file.path(tempdir(),basename(gtfRef)))
+tempRef <- import(gtfRef)
+tempRef$transcript_id[tempRef$transcript_id == ""] <- NA
+export(tempRef,gtfTempRef)
+
+Herper::with_CondaEnv("general_rnaseq",
+                      system(paste("stringtie -G",gtfTempRef,"-o",
+                                   "/rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/kip_longAndShort_gtf//Stringtie_Sample1.gtf"
+                                   ,"-L",bam
+                                   )),
+                      pathToMiniConda = "/ru-auth/local/home/brc_pipeline/brc_conda/")
+```
