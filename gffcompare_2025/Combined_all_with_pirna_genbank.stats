@@ -1,0 +1,30 @@
+# gffcompare v0.12.6 | Command line was:
+#gffcompare -V -r Genbank.gtf -o gffcompare_2025/Combined_all_with_pirna_genbank Combined_all_with_pirna.gtf
+#
+
+#= Summary for dataset: Combined_all_with_pirna.gtf 
+#     Query mRNAs :   91589 in   36450 loci  (65882 multi-exon transcripts)
+#            (10292 multi-transcript loci, ~2.5 transcripts per locus)
+# Reference mRNAs :   13099 in   13098 loci  (11923 multi-exon)
+# Super-loci w/ reference transcripts:    10887
+#-----------------| Sensitivity | Precision  |
+        Base level:    94.4     |    21.7    |
+        Exon level:    68.2     |    30.2    |
+      Intron level:    89.3     |    58.0    |
+Intron chain level:    45.6     |     8.3    |
+  Transcript level:    41.5     |     5.9    |
+       Locus level:    41.5     |    14.8    |
+
+     Matching intron chains:    5438
+       Matching transcripts:    5438
+              Matching loci:    5437
+
+          Missed exons:    3853/78386	(  4.9%)
+           Novel exons:   69844/182100	( 38.4%)
+        Missed introns:    2808/65288	(  4.3%)
+         Novel introns:   24978/100540	( 24.8%)
+           Missed loci:    1003/13098	(  7.7%)
+            Novel loci:   25163/36450	( 69.0%)
+
+ Total union super-loci across all input datasets: 36050 
+91589 out of 91589 consensus transcripts written in gffcompare_2025/Combined_all_with_pirna_genbank.annotated.gtf (0 discarded as redundant)
