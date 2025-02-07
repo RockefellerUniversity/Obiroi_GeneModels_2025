@@ -169,7 +169,7 @@ downloaded 3955 bytes
 </details>
 ## Create whitelisted gene models as GTF
 
-This section descibes how we create the GTF files containing gene models to count over.
+This section descibes how we create the GTF files containing gene models to use as a referece
 
 <details>
 ```{r , include=TRUE}
@@ -204,9 +204,9 @@ downloaded 6.4 MB
 
 ```
 </details>
-## Create Subread index for reference genome (Rhisat2)
+## Create Pbmm2 index for reference genome (minimap2 in pbmm2 wrapper)
 
-This section descibes how we build the the index files for Rhisat2 alignment.
+This section descibes how we build the the index files for pbmm2 (minimap2) alignment.
 
 <details>
 ```{r , include=TRUE}
@@ -223,17 +223,14 @@ BRCDK_long_pbmm2index <- {
 }
 ```
 ```
-Warning: running command 'pbmm2 index /lustre/fs4/brc/scratch/brc_pipeline/reference/BRCDK_long/workflow_data/BRCDK_long_BzippedWhite.fa.bgz BRCDK_long_pbmm2index.mmi' had status 1
-
-Warning: running command 'pbmm2 index /lustre/fs4/brc/scratch/brc_pipeline/reference/BRCDK_long/workflow_data/BRCDK_long_BzippedWhite.fa.bgz /lustre/fs4/brc/scratch/brc_pipeline/reference/BRCDK_long/workflow_data/BRCDK_long_pbmm2index.mmi' had status 1
 
 
 
 ```
 </details>
-## Create Subread index for reference genome (Rhisat2)
+## Create index for reference gtf (pigeon)
 
-This section descibes how we build the the index files for Rhisat2 alignment.
+This section descibes how we build the the GTF index files for pigeon.
 
 <details>
 ```{r , include=TRUE}
@@ -272,9 +269,9 @@ BRCDK_long_BzippedWhiteIndex <- {
 
 ```
 </details>
-## FastQ retrieval and integrity checking of fastQ files
+## Fasta retrieval and integrity checking of fasta files
 
-This section describes the retrieval of FastQ and testing of their
+This section describes the retrieval of Fasta and testing of their
 integrity of files by checking the md5 sum of downloaded files versus known md5.
 
 <details>
@@ -296,10 +293,9 @@ Sample1_I1_Pair1 <- {
 
 ```
 </details>
-## FastQ Concatenation
+## Fasta Concatenation
 
-This section descibes the concantenation of FastQ files from same sample and read pair into
-a single FastQ file.
+This section descibes the concantenation of Fasta files from same sample
 
 To do this we will use the Rfastp package's catFastQ function.
 
@@ -313,9 +309,9 @@ Sample1_Pair1FQ <- {
 
 ```
 </details>
-## Create Subread index for reference genome (Rhisat2)
+## Align data with pbmm2
 
-This section descibes how we build the the index files for Rhisat2 alignment.
+This section descibes how we align data with pbmm2
 
 <details>
 ```{r , include=TRUE}
@@ -335,9 +331,9 @@ Sample1_pbmm2 <- {
 
 ```
 </details>
-## Create Subread index for reference genome (Rhisat2)
+## Create GFF using isoseq3
 
-This section descibes how we build the the index files for Rhisat2 alignment.
+This section descibes how we create GFF using isoseq3 from pbmm2 alignment
 
 <details>
 ```{r , include=TRUE}
@@ -357,9 +353,9 @@ Sample1_isoseq <- {
 
 ```
 </details>
-## Create Subread index for reference genome (Rhisat2)
+## Create final GFF from long read data
 
-This section descibes how we build the the index files for Rhisat2 alignment.
+This section descibes how we sort, classify and filter data using pigeon.
 
 <details>
 ```{r , include=TRUE}
@@ -416,11 +412,9 @@ Sample1_pigeonReport <- {
 
 ```
 </details>
-## Count reads in genes
+## Identify coding regions in GFF.
 
-To assign RNAseq reads to genes we can use the featureCounts function within the Rsubread package.
-
-We have to provide our GTF file as our gene models to count over.
+In this section we use transdecoder to identify coding regions in our gene models.
 
 <details>
 ```{r , include=TRUE}
@@ -458,37 +452,15 @@ merged_pigeon_transdecode <- {
 
 CMD: mkdir -p /rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/Kip_Long_BothBatches/workflow_data/transdecode/transcripts.fasta.transdecoder_dir
 CMD: touch /rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/Kip_Long_BothBatches/workflow_data/transdecode/transcripts.fasta.transdecoder_dir/__checkpoints_longorfs/TD.longorfs.ok
-WARNING: ignoring environment value of R_HOME
-null device 
-          1 
-WARNING: ignoring environment value of R_HOME
-null device 
-          1 
-WARNING: ignoring environment value of R_HOME
-null device 
-          1 
-WARNING: ignoring environment value of R_HOME
-null device 
-          1 
-WARNING: ignoring environment value of R_HOME
-null device 
-          1 
-WARNING: ignoring environment value of R_HOME
-null device 
-          1 
-WARNING: ignoring environment value of R_HOME
-null device 
-          1 
+
 
 
 
 ```
 </details>
-## Count reads in genes
+## Compare GFF to known gene models.
 
-To assign RNAseq reads to genes we can use the featureCounts function within the Rsubread package.
-
-We have to provide our GTF file as our gene models to count over.
+In this section we compare our newly generated GFF to established gene models.
 
 <details>
 ```{r , include=TRUE}
@@ -514,9 +486,6 @@ Sample1_gffcompare <- {
 ```
 ```
 
-Warning: running command 'gffcompare -r /tmp/RtmptUeirw/BRCDK_long_gBzipped.gtf -o /rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/Kip_Long_BothBatches/workflow_data/Sample1_gffcompare.gtf /tmp/RtmptUeirw/merged_pigeon_transdecode.gtf.gz' had status 1
-
-Warning: running command 'gffcompare -r /tmp/Rtmp9j5IQT/BRCDK_long_gBzipped.gtf -o /rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/Kip_Long_BothBatches/workflow_data/Sample1_gffcompare.gtf /tmp/Rtmp9j5IQT/merged_pigeon_transdecode.gtf.gz' had status 1
 
 
 
