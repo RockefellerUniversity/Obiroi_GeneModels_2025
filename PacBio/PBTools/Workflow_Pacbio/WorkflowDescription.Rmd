@@ -1,0 +1,580 @@
+
+---
+output:
+  html_document
+---
+
+```{css,echo=FALSE}
+  .title {
+    margin-top: 0.5em !important;
+    margin-bottom: 0.5em;
+  }
+
+  .section h1,  .section h2,  .section h3,  .section h4,  .section h5 {
+    padding-top: 0.5em !important; /*adding so much padding because theme adds a margin-top: -65px by default */
+      margin-bottom: 0.2em;
+  }
+
+  @media (min-width: 992px) {
+    .col-md-9 {
+      width: 75%;
+      padding-left: 5em !important;
+    }
+  }
+
+  #TOC::before {
+  content: "";
+  display: block;
+  height: 200px;
+  margin: 2em 20px 40px 20px;
+  background-image: url("https://avatars.githubusercontent.com/u/24759038?s=400&u=7ae0265948793e7698efd079e4f3391ca147ed6b&v=4");
+  background-size: contain;
+  background-position: center center;
+  background-repeat: no-repeat;
+}
+
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+## Params
+
+
+## Setting output, environments, libraries and temporary directories.
+
+First the directories for workflow output, conda and conda environments used by Herper, R libaries from Renv and for temporary files must be created.
+
+<details>
+
+<style>
+ div.JSasR {
+      display: block;
+      padding: 9.5px;
+      margin: 0 0 10px;
+      font-size: 13px;
+      line-height: 1.42857143;
+      word-break: break-all;
+      word-wrap: break-word;
+      color: #333333;
+        background-color: #f5f5f5;
+        border: 1px solid #cccccc;
+      border-radius: 4px;
+  }
+</style>
+<div class = "JSasR">
+```{js,echo=FALSE,eval=TRUE}
+var myStringArray = "output_dir";
+var myStringArray2 = "output_dir";
+var arrayLength = myStringArray.length;
+for (let i = 0; i < arrayLength; i++) {
+  var setwdStart2 = myStringArray[i];
+  var setwdStart = ' <- "';
+  var setwdStart3 = myStringArray2[i];
+  var setwdEnd = '"';
+  var loc = window.location.pathname;
+  var dir = loc.substring(0, loc.lastIndexOf('/'));
+  var dir2 = dir.substring(0, dir.lastIndexOf('/'));
+  var path = setwdStart2.concat(setwdStart).concat(dir2).concat("/").concat(setwdStart3).concat(setwdEnd);
+  document.write(path);
+  document.write("<br>");
+}
+```
+</div>
+
+```{r}
+dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+```
+</details>
+
+## Build Herper conda and conda environments.
+
+In this section Conda and Conda environments required for processing and analysis are installed. The conda environment is described within a Conda yml lock file and the R/Bioconductor Herper package is used the required environment and conda to install to the listed local directory.
+
+<details>
+```{r}
+general_conda <- file.path(output_dir, "libraries_and_environments", "brc_conda")
+general_env <- {
+  Herper::import_CondaEnv(yml_import = "pbmm2.yml", name = "pbmm2", pathToMiniConda = general_conda)
+  "pbmm2"
+}
+```
+</details>
+## Create whitelisted fasta file
+
+This section descibes how we create our reference fasta file
+
+<details>
+```{r , include=TRUE}
+Obiroi_BRCDK_5_4_fasta <- {
+  options(timeout = 600 * 60)
+  download.file("https://rubioinformatics.s3.amazonaws.com/Reference/GenBank.fa.gz", file.path(output_dir, "GenBank.fa.gz"))
+  Obiroi_BRCDK_5_4_fasta_MD5 <- tools::md5sum(file.path(output_dir, "GenBank.fa.gz"))
+  if (Obiroi_BRCDK_5_4_fasta_MD5 == "b9a982a884fb6345e305147bbd876096") {
+    write.table(Obiroi_BRCDK_5_4_fasta_MD5, file.path(output_dir, "Obiroi_BRCDK_5_4_fasta_MD5.txt"))
+  } else {
+    unlink(file.path(output_dir, "GenBank.fa.gz"))
+    stop("Calculated MD5 didn't match expected")
+  }
+  file.path(output_dir, "GenBank.fa.gz")
+}
+Obiroi_BRCDK_5_4_whitelist <- {
+  options(timeout = 600 * 60)
+  download.file("https://rubioinformatics.s3.amazonaws.com/Reference/Obiroi_BRCDK__5_4_whitelist.txt", file.path(output_dir, "Obiroi_BRCDK__5_4_whitelist.txt"))
+  Obiroi_BRCDK_5_4_whitelist_MD5 <- tools::md5sum(file.path(output_dir, "Obiroi_BRCDK__5_4_whitelist.txt"))
+  if (Obiroi_BRCDK_5_4_whitelist_MD5 == "bd85d59677a4f60e9b7341ff1d1da2f0") {
+    write.table(Obiroi_BRCDK_5_4_whitelist_MD5, file.path(output_dir, "Obiroi_BRCDK_5_4_whitelist_MD5.txt"))
+  } else {
+    unlink(file.path(output_dir, "Obiroi_BRCDK__5_4_whitelist.txt"))
+    stop("Calculated MD5 didn't match expected")
+  }
+  file.path(output_dir, "Obiroi_BRCDK__5_4_whitelist.txt")
+}
+BRCDK_long_Bzipped <- {
+  unzipped <- gunzip(Obiroi_BRCDK_5_4_fasta, destname = tempfile(), remove = FALSE)
+  bgzip(unzipped, dest = file.path(output_dir, "BRCDK_long_Bzipped.fa.bgz"), overwrite = TRUE)
+  file.path(output_dir, "BRCDK_long_Bzipped.fa.bgz")
+}
+BRCDK_long_BzippedIndex <- {
+  indexFa(BRCDK_long_Bzipped)
+  "BRCDK_long_Bzipped.fa.bgz.fai"
+}
+BRCDK_long_BzippedWhite <- {
+  FaFile <- FaFile(file = BRCDK_long_Bzipped, index = BRCDK_long_BzippedIndex)
+  WhiteListChrs <- read.table(Obiroi_BRCDK_5_4_whitelist, header = TRUE, row.names = 1) %>% rownames()
+  dnastringset <- scanFa(FaFile, as = c("DNAStringSet"))
+  fastawhite_File <- tempfile()
+  writeXStringSet(dnastringset[WhiteListChrs], file = fastawhite_File)
+  bgzip(fastawhite_File, dest = file.path(output_dir, "BRCDK_long_BzippedWhite.fa.bgz"))
+  file.path(output_dir, "BRCDK_long_BzippedWhite.fa.bgz")
+}
+```
+```
+trying URL 'https://rubioinformatics.s3.amazonaws.com/Reference/GenBank.fa.gz'
+Content type 'application/x-gzip' length 67490813 bytes (64.4 MB)
+==================================================
+downloaded 64.4 MB
+
+
+trying URL 'https://rubioinformatics.s3.amazonaws.com/Reference/Obiroi_BRCDK__5_4_whitelist.txt'
+Content type 'text/plain' length 3955 bytes
+==================================================
+downloaded 3955 bytes
+
+
+
+
+
+```
+</details>
+## Create whitelisted gene models as GTF
+
+This section descibes how we create the GTF files containing gene models to count over.
+
+<details>
+```{r , include=TRUE}
+Obiroi_BRCDK_5_4_gtf <- {
+  options(timeout = 600 * 60)
+  download.file("https://rubioinformatics.s3.amazonaws.com/Reference/Obiroi_BRCDK__5_4.gtf.gz", file.path(output_dir, "Obiroi_BRCDK__5_4.gtf.gz"))
+  Obiroi_BRCDK_5_4_gtf_MD5 <- tools::md5sum(file.path(output_dir, "Obiroi_BRCDK__5_4.gtf.gz"))
+  if (Obiroi_BRCDK_5_4_gtf_MD5 == "3b30c1e3e72b683237785e6c3bdedda7") {
+    write.table(Obiroi_BRCDK_5_4_gtf_MD5, file.path(output_dir, "Obiroi_BRCDK_5_4_gtf_MD5.txt"))
+  } else {
+    unlink(file.path(output_dir, "Obiroi_BRCDK__5_4.gtf.gz"))
+    stop("Calculated MD5 didn't match expected")
+  }
+  file.path(output_dir, "Obiroi_BRCDK__5_4.gtf.gz")
+}
+BRCDK_long_BzippedGTF <- {
+  WhiteListChrs <- read.table(Obiroi_BRCDK_5_4_whitelist, header = TRUE, row.names = 1) %>% rownames()
+  gtfGR <- rtracklayer::import.gff(Obiroi_BRCDK_5_4_gtf)
+  gtfGR <- gtfGR[seqnames(gtfGR) %in% WhiteListChrs]
+  tempgtf <- paste0(tempfile(), ".gtf")
+  rtracklayer::export.gff(gtfGR, con = tempgtf)
+  bgzip(tempgtf, dest = file.path(output_dir, "BRCDK_long_gBzipped.gtf.bgz"), overwrite = TRUE)
+}
+```
+```
+trying URL 'https://rubioinformatics.s3.amazonaws.com/Reference/Obiroi_BRCDK__5_4.gtf.gz'
+Content type 'application/x-gzip' length 6667948 bytes (6.4 MB)
+==================================================
+downloaded 6.4 MB
+
+
+
+```
+</details>
+## Create Subread index for reference genome (Rhisat2)
+
+This section descibes how we build the the index files for Rhisat2 alignment.
+
+<details>
+```{r , include=TRUE}
+BRCDK_long_pbmm2index <- {
+  Herper::with_CondaEnv(general_env,
+    {
+      unzipped_fasta <- paste0(tempfile(), ".fa")
+      gunzip(BRCDK_long_BzippedWhite, destname = unzipped_fasta, ext = "bgz", FUN = gzfile, remove = FALSE)
+      cmd <- paste("pbmm2 index", unzipped_fasta, file.path(output_dir, paste0("BRCDK_long_pbmm2index", ".mmi")))
+      ruTargets::system(cmd)
+    },
+    pathToMiniConda = general_conda
+  )
+}
+```
+```
+Warning: running command 'pbmm2 index /lustre/fs4/brc/scratch/brc_pipeline/reference/BRCDK_long/workflow_data/BRCDK_long_BzippedWhite.fa.bgz BRCDK_long_pbmm2index.mmi' had status 1
+
+Warning: running command 'pbmm2 index /lustre/fs4/brc/scratch/brc_pipeline/reference/BRCDK_long/workflow_data/BRCDK_long_BzippedWhite.fa.bgz /lustre/fs4/brc/scratch/brc_pipeline/reference/BRCDK_long/workflow_data/BRCDK_long_pbmm2index.mmi' had status 1
+
+
+
+```
+</details>
+## Create Subread index for reference genome (Rhisat2)
+
+This section descibes how we build the the index files for Rhisat2 alignment.
+
+<details>
+```{r , include=TRUE}
+BRCDK_long_pigeonindex <- {
+  Herper::with_CondaEnv(general_env,
+    {
+      unzipped_gtf <- gsub("\\.gz|\\.bgz", "", BRCDK_long_BzippedGTF)
+      gunzip(BRCDK_long_BzippedGTF, destname = unzipped_gtf, ext = "bgz", FUN = gzfile, remove = FALSE)
+      cmd <- paste("pigeon index", unzipped_gtf)
+      ruTargets::system(cmd)
+    },
+    pathToMiniConda = general_conda
+  )
+}
+```
+```
+
+
+
+```
+</details>
+## Process
+
+## Create whitelisted fasta file
+
+This section descibes how we create our reference fasta file
+
+<details>
+```{r , include=TRUE}
+BRCDK_long_BzippedWhiteIndex <- {
+  indexFa(BRCDK_long_BzippedWhite)
+  file.path(output_dir, "BRCDK_long_BzippedWhite.fa.bgz.fai")
+}
+```
+```
+
+```
+</details>
+## FastQ retrieval and integrity checking of fastQ files
+
+This section describes the retrieval of FastQ and testing of their
+integrity of files by checking the md5 sum of downloaded files versus known md5.
+
+<details>
+```{r , include=TRUE}
+Sample1_I1_Pair1 <- {
+  download_process_dir <- file.path(output_dir, "FQ")
+  dir.create(download_process_dir, showWarnings = FALSE, recursive = TRUE)
+  file.copy("/rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/allsamples_cat.fasta", file.path(download_process_dir, "allsamples_cat.fasta"), overwrite = TRUE)
+  Sample1_I1_Pair1MD5 <- tools::md5sum(file.path(download_process_dir, "allsamples_cat.fasta"))
+  if (Sample1_I1_Pair1MD5 == "ff69e33adf26be1074f770f88fc53819") {
+    write.table("ff69e33adf26be1074f770f88fc53819", file.path(download_process_dir, "Sample1_I1_Pair1MD5.txt"))
+  } else {
+    stop("Calculated MD5 didn't match expected")
+  }
+  file.path(download_process_dir, "allsamples_cat.fasta")
+}
+```
+```
+
+```
+</details>
+## FastQ Concatenation
+
+This section descibes the concantenation of FastQ files from same sample and read pair into
+a single FastQ file.
+
+To do this we will use the Rfastp package's catFastQ function.
+
+<details>
+```{r , include=TRUE}
+Sample1_Pair1FQ <- {
+  Sample1_I1_Pair1
+}
+```
+```
+
+```
+</details>
+## Create Subread index for reference genome (Rhisat2)
+
+This section descibes how we build the the index files for Rhisat2 alignment.
+
+<details>
+```{r , include=TRUE}
+Sample1_pbmm2 <- {
+  Herper::with_CondaEnv(general_env,
+    {
+      cmd <- paste0("pbmm2 align --preset ISOSEQ -j 8 -m 512M --sort ", Sample1_Pair1FQ, " ", BRCDK_long_pbmm2index, " ", file.path(output_dir, "Sample1_pbmm2.bam"))
+      ruTargets::system(cmd)
+      file.path(output_dir, "Sample1_pbmm2.bam")
+    },
+    pathToMiniConda = general_conda
+  )
+}
+```
+```
+
+
+```
+</details>
+## Create Subread index for reference genome (Rhisat2)
+
+This section descibes how we build the the index files for Rhisat2 alignment.
+
+<details>
+```{r , include=TRUE}
+Sample1_isoseq <- {
+  Herper::with_CondaEnv(general_env,
+    {
+      cmd <- paste0("isoseq3 collapse ", Sample1_pbmm2, " ", file.path(output_dir, "Sample1_isoseq.gff"))
+      ruTargets::system(cmd)
+      file.path(output_dir, "Sample1_isoseq.gff")
+    },
+    pathToMiniConda = general_conda
+  )
+}
+```
+```
+
+
+```
+</details>
+## Create Subread index for reference genome (Rhisat2)
+
+This section descibes how we build the the index files for Rhisat2 alignment.
+
+<details>
+```{r , include=TRUE}
+Sample1_pigeon <- {
+  Herper::with_CondaEnv(general_env,
+    {
+      cmd <- paste0("pigeon sort  ", Sample1_isoseq, " -o ", file.path(output_dir, "Sample1_pigeon_sorted.gff"))
+      ruTargets::system(cmd)
+      file.path(output_dir, "Sample1_pigeon_sorted.gff")
+    },
+    pathToMiniConda = general_conda
+  )
+}
+Sample1_pigeonClassification <- {
+  Herper::with_CondaEnv(general_env,
+    {
+      cmd <- paste0("pigeon classify  ", Sample1_pigeon, " ", BRCDK_long_pigeonindex, " ", BRCDK_long_BzippedWhite, " -d ", output_dir)
+      ruTargets::system(cmd)
+      file.path(output_dir, "Sample1_pigeon_sorted_classification.txt")
+    },
+    pathToMiniConda = general_conda
+  )
+}
+Sample1_pigeonFilter <- {
+  Herper::with_CondaEnv(general_env,
+    {
+      cmd <- paste0("pigeon filter  ", Sample1_pigeonClassification, " --isoforms ", Sample1_pigeon)
+      ruTargets::system(cmd)
+      file.path(output_dir, "Sample1_pigeon_sorted.filtered_lite.gff")
+    },
+    pathToMiniConda = general_conda
+  )
+}
+Sample1_pigeonReport <- {
+  Herper::with_CondaEnv(general_env,
+    {
+      pigeon_class_file <- gsub("\\.filtered_lite\\.gff", "_classification.filtered_lite_classification.txt", Sample1_pigeonFilter)
+      cmd <- paste0("pigeon report  ", pigeon_class_file, " ", file.path(output_dir, "Sample1_pigeon_sorted.saturation.txt"))
+      ruTargets::system(cmd)
+      file.path(output_dir, "Sample1_pigeon_sorted.saturation.txt")
+    },
+    pathToMiniConda = general_conda
+  )
+}
+```
+```
+
+
+
+
+
+
+
+
+```
+</details>
+## Count reads in genes
+
+To assign RNAseq reads to genes we can use the featureCounts function within the Rsubread package.
+
+We have to provide our GTF file as our gene models to count over.
+
+<details>
+```{r , include=TRUE}
+transdecoder_env <- {
+  "transdecoder"
+}
+merged_pigeon_transdecode <- {
+  Herper::with_CondaEnv(transdecoder_env,
+    {
+      transcode_output <- file.path(output_dir, "transdecode")
+      unzippedFasta <- file.path(tempdir(), gsub("\\.bgz", "", basename(BRCDK_long_BzippedWhite)))
+      transfasta <- file.path(tempdir(), "transcripts.fasta")
+      gffTemp <- file.path(tempdir(), gsub("\\.gtf", ".gff", basename(Sample1_pigeonFilter)))
+      R.utils::gunzip(BRCDK_long_BzippedWhite, unzippedFasta, remove = FALSE)
+      cmd <- "gtf_genome_to_cdna_fasta.pl"
+      args <- paste(Sample1_pigeonFilter, unzippedFasta, ">", transfasta)
+      system(paste(cmd, args))
+      cmd <- "gtf_to_alignment_gff3.pl"
+      args <- paste(Sample1_pigeonFilter, ">", gffTemp)
+      system(paste(cmd, args))
+      system(paste("TransDecoder.LongOrfs --output_dir", transcode_output, "-t", transfasta))
+      system(paste("TransDecoder.Predict --output_dir", transcode_output, "-t", transfasta))
+      system(paste("cdna_alignment_orf_to_genome_orf.pl", paste0(file.path(transcode_output, basename(transfasta)), ".transdecoder.gff3"), gffTemp, transfasta, ">", paste0(file.path(transcode_output, basename(transfasta)), ".transdecoder.genome.gff3")))
+      system(paste("gffread -E -T", file.path(transcode_output, paste0(basename(transfasta), ".transdecoder.genome.gff3")), ">", file.path(output_dir, "merged_pigeon_transdecode.gtf")), )
+      R.utils::gzip(file.path(output_dir, "merged_pigeon_transdecode.gtf"), paste0(file.path(output_dir, "merged_pigeon_transdecode.gtf"), ".gz"), remove = FALSE)
+      paste0(file.path(output_dir, "merged_pigeon_transdecode.gtf"), ".gz")
+    },
+    pathToMiniConda = general_conda
+  )
+}
+```
+```
+
+
+
+CMD: mkdir -p /rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/Kip_Long_BothBatches/workflow_data/transdecode/transcripts.fasta.transdecoder_dir
+CMD: touch /rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/Kip_Long_BothBatches/workflow_data/transdecode/transcripts.fasta.transdecoder_dir/__checkpoints_longorfs/TD.longorfs.ok
+WARNING: ignoring environment value of R_HOME
+null device 
+          1 
+WARNING: ignoring environment value of R_HOME
+null device 
+          1 
+WARNING: ignoring environment value of R_HOME
+null device 
+          1 
+WARNING: ignoring environment value of R_HOME
+null device 
+          1 
+WARNING: ignoring environment value of R_HOME
+null device 
+          1 
+WARNING: ignoring environment value of R_HOME
+null device 
+          1 
+WARNING: ignoring environment value of R_HOME
+null device 
+          1 
+
+
+
+```
+</details>
+## Count reads in genes
+
+To assign RNAseq reads to genes we can use the featureCounts function within the Rsubread package.
+
+We have to provide our GTF file as our gene models to count over.
+
+<details>
+```{r , include=TRUE}
+gffcompare_env <- {
+  "gffcompare"
+}
+Sample1_gffcompare <- {
+  Herper::with_CondaEnv(gffcompare_env,
+    {
+      gtfTempRef <- file.path(tempdir(), basename(BRCDK_long_pigeonindex))
+      tempRef <- import(BRCDK_long_pigeonindex)
+      tempRef$transcript_id[tempRef$transcript_id == ""] <- NA
+      export(tempRef, gtfTempRef)
+      gtfTempNovel <- file.path(tempdir(), basename(merged_pigeon_transdecode))
+      R.utils::gunzip(merged_pigeon_transdecode, gtfTempNovel, remove = FALSE)
+      system(paste("gffcompare -r", gtfTempRef, "-o", file.path(output_dir, "Sample1_gffcompare.gtf"), gtfTempNovel))
+      R.utils::gzip(file.path(output_dir, "Sample1_gffcompare.gtf"), paste0(file.path(output_dir, "Sample1_gffcompare.gtf"), ".gz"), remove = FALSE)
+      paste0(file.path(output_dir, "Sample1_gffcompare.gtf"), ".gz")
+    },
+    pathToMiniConda = general_conda
+  )
+}
+```
+```
+
+Warning: running command 'gffcompare -r /tmp/RtmptUeirw/BRCDK_long_gBzipped.gtf -o /rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/Kip_Long_BothBatches/workflow_data/Sample1_gffcompare.gtf /tmp/RtmptUeirw/merged_pigeon_transdecode.gtf.gz' had status 1
+
+Warning: running command 'gffcompare -r /tmp/Rtmp9j5IQT/BRCDK_long_gBzipped.gtf -o /rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/Kip_Long_BothBatches/workflow_data/Sample1_gffcompare.gtf /tmp/Rtmp9j5IQT/merged_pigeon_transdecode.gtf.gz' had status 1
+
+
+
+
+```
+</details>
+
+<table id="example" class="display" width="100%"></table>
+
+  <script src="https://code.jquery.com/jquery-3.5.0.js"></script>
+  <script src="https://cdn.datatables.net/1.11.3/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.11.3/css/jquery.dataTables.min.css">
+
+
+  <script>
+
+  var tablearray = [];
+
+(function() {
+  var testjson = "https://raw.githubusercontent.com/RockefellerUniversity/GlossyBRC/master/inst/json/glossary2.json";
+  $.getJSON( testjson, function(jsonToParse){
+    console.log(jsonToParse)
+  })
+  .done(function( data ) {
+    $.each( data, function(i,data) {
+      //console.log(data);
+      var wordcount = 0;
+      console.log(data.Tags)
+      $('p').contents().filter(function() {
+        return this.nodeType === 3;
+      }).replaceWith(function() {
+        console.log("<a href='"+"#example"+"'>"+data.Tags+"</a>");
+        // return this.nodeValue.replace(data.Tags,data.URLS);
+        count = (this.nodeValue.toLowerCase().match(data.Tags.toLowerCase()) || []).length;
+        console.log(count);
+        wordcount = wordcount+count;
+        return this.nodeValue.toLowerCase().replace(data.Tags.toLowerCase(),"<a href='"+"#example"+"'>"+data.Tags+"</a>");
+      });
+      console.log(wordcount);
+      if(wordcount > 0){
+        console.log("ooh");
+        x = new Array();
+        x.push(data.Tags,"<a href='"+data.URLS+"'>"+data.Tags+"</a>",data.Description)
+        console.log(x)
+        tablearray.push(x)
+        console.log(tablearray)
+      }
+    });
+  });
+})();
+
+
+
+$(document).ready(function() {
+  $('#example').DataTable( {
+    data: tablearray,    columns: [
+      { title: "Tag" },      { title: "URL" },      { title: "Description" }
+    ]
+  } );
+} );
+</script>

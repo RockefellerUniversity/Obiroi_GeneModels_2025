@@ -1,0 +1,87 @@
+{
+    "_comment": "Created by pbcopper v2.1.0",
+    "attributes": [
+        {
+            "id": "median_genes_per_cell",
+            "name": "Median Genes Per Cell",
+            "value": 0.0
+        },
+        {
+            "id": "median_transcripts_per_cell",
+            "name": "Median Transcripts Per Cell",
+            "value": 0.0
+        },
+        {
+            "id": "median_genes_per_cell_known",
+            "name": "Median Genes Per Cell, known genes only",
+            "value": 0.0
+        },
+        {
+            "id": "median_transcripts_per_cell_known",
+            "name": "Median Transcripts Per Cell, known transcripts only",
+            "value": 0.0
+        },
+        {
+            "id": "total_unique_genes",
+            "name": "Total Unique Genes",
+            "value": 7940
+        },
+        {
+            "id": "total_unique_genes_known",
+            "name": "Total Unique Genes, known genes only",
+            "value": 1
+        },
+        {
+            "id": "total_unique_transcripts",
+            "name": "Total Unique Transcripts",
+            "value": 149177
+        },
+        {
+            "id": "total_unique_transcripts_known",
+            "name": "Total Unique Transcripts, known transcripts only",
+            "value": 138919
+        },
+        {
+            "id": "flnc_mapped_genome",
+            "name": "FLNC Reads Mapped to Genome",
+            "value": 0
+        },
+        {
+            "id": "flnc_mapped_transcriptome",
+            "name": "FLNC Reads Confidently Mapped to Transcriptome",
+            "value": 0
+        },
+        {
+            "id": "flnc_mapped_transcriptome_excluding_ribomito",
+            "name": "FLNC Reads Confidently Mapped to Transcriptome, excluding ribomito",
+            "value": 0
+        },
+        {
+            "id": "transcripts_fsm",
+            "name": "Transcripts classified as Full-splice Matches (FSM)",
+            "value": 25780
+        },
+        {
+            "id": "transcripts_ism",
+            "name": "Transcripts classified as Incomplete-splice Matches (ISM)",
+            "value": 19184
+        },
+        {
+            "id": "transcripts_nic",
+            "name": "Transcripts classified as Novel In Catalog (NIC)",
+            "value": 37236
+        },
+        {
+            "id": "transcripts_nnc",
+            "name": "Transcripts classified as Novel Not In Catalog (NNC)",
+            "value": 53452
+        }
+    ],
+    "dataset_uuids": [],
+    "id": "classification_summary",
+    "plotGroups": [],
+    "tables": [],
+    "title": "Pigeon Classification Summary",
+    "uuid": "320f2726-0356-46ff-8d3f-35050345f291",
+    "version": "1.0.1"
+}

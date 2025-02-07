@@ -1,0 +1,35 @@
+Input transcripts  : 149300
+Unique genes       : 7940
+Unique transcripts : 149177
+
+Transcripts
+-------------
+Full splice match       : 25780 (17.27%)
+Incomplete splice match : 19184 (12.85%)
+Novel in catalog        : 37236 (24.94%)
+Novel not in catalog    : 53452 (35.80%)
+Antisense               : 2320 (1.55%)
+Genic intron            : 0 (0.00%)
+Genic genomic           : 3267 (2.19%)
+Intergenic              : 7938 (5.32%)
+Other                   : 123 (0.08%)
+
+Junctions
+-----------
+Known canonical     : 831085 (90.11%)
+Known non-canonical : 613 (0.07%)
+Novel canonical     : 72467 (7.86%)
+Novel non-canonical : 18158 (1.97%)
+
+Genes
+-------
+Known : 1 (0.01%)
+Novel : 7939 (99.99%)
+
+RT Switching
+--------------
+All transcripts    : 3593 (2.41%)
+Unique transcripts : 3593 (2.41%)
+All junctions      : 3798 (0.41%)
+Unique junctions   : 3798 (0.41%)
+
