@@ -4,13 +4,13 @@ This repository contains code and input files for the creation of OBiroi gene mo
 
 ## Short read data.
 
-Short read data was processed following the workflow described in [Illumina/StringTie_NoGTF/report/WorkflowDescription.html](https://github.com/RockefellerUniversity/Obiroi_GeneModels_2025/Illumina/StringTie_NoGTF/report/WorkflowDescription.html).
+Short read data was processed following the workflow described in [Illumina/StringTie_NoGTF/report/WorkflowDescription.html](https://github.com/RockefellerUniversity/Obiroi_GeneModels_2025/blob/main/Illumina/StringTie_NoGTF/report/WorkflowDescription.html).
 
 This includes Hisat2 alignment and stringtie creation of gene models.
 
 ## Long read data
 
-Long read data was processed following the workflow described in [PacBio/PBTools/report/WorkflowDescription.html](https://github.com/RockefellerUniversity/Obiroi_GeneModels_2025/blob/main/PacBio/PBTools/report/WorkflowDescription.html).
+Long read data was processed following the workflow described in [PacBio/PBTools/report/WorkflowDescription.html](https://github.com/RockefellerUniversity/Obiroi_GeneModels_2025/blob/main/PacBio/PBTools/Workflow_Pacbio/WorkflowDescription.html).
 
 This describes the minimap2, isoseq3 and pigeon software steps for creation of gene models.
 
