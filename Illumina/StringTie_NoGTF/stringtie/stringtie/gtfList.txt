@@ -1,0 +1,6 @@
+/rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/BRCDK_noGTF/workflow_data/Adults_stringtie.gtf/Adults_stringtie.gtf
+/rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/BRCDK_noGTF/workflow_data/Eggs_stringtie.gtf/Eggs_stringtie.gtf
+/rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/BRCDK_noGTF/workflow_data/FourthInstarLarvae_stringtie.gtf/FourthInstarLarvae_stringtie.gtf
+/rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/BRCDK_noGTF/workflow_data/Prepupae_stringtie.gtf/Prepupae_stringtie.gtf
+/rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/BRCDK_noGTF/workflow_data/Pupae_stringtie.gtf/Pupae_stringtie.gtf
+/rugpfs/fs0/brc/scratch/brc_pipeline/analysis/kip_redo/BRCDK_noGTF/workflow_data/YoungLarvae_stringtie.gtf/YoungLarvae_stringtie.gtf
