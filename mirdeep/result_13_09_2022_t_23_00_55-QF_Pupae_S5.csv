@@ -1,0 +1,162 @@
+miRDeep2 score	estimated signal-to-noise	excision gearing
+10	40.2	2
+9	39.8	2
+8	39.2	2
+7	39.1	2
+6	37.7	2
+5	41.1	2
+4	39.5	2
+3	31.6	2
+2	25.5	2
+1	17.6	2
+0	7.6	2
+-1	4.2	2
+-2	2.9	2
+-3	3	2
+-4	2.4	2
+-5	1.2	2
+-6	0.8	2
+-7	0.8	2
+-8	0.9	2
+-9	0.9	2
+-10	1	2
+
+
+
+novel miRNAs predicted by miRDeep2
+provisional id	miRDeep2 score	estimated probability that the miRNA candidate is a true positive	rfam alert	total read count	mature read count	loop read count	star read count	significant randfold p-value	miRBase miRNA	example miRBase miRNA with the same seed	UCSC browser	NCBI blastn	consensus mature sequence	consensus star sequence	consensus precursor sequence	precursor coordinate
+NC_039513.1_10437	241984		-	474633	469759	0	4874	yes	-	dme-miR-276a-3p	-	-	uaggaacuucauaccgugcucu	agcgagguauagaguuccuacg	agcgagguauagaguuccuacguaguguucagaaaguaggaacuucauaccgugcucu	NC_039513.1:14552644..14552702:+
+NC_039510.1_5672	227303.4		-	445837	445539	29	269	yes	-	dme-miR-263a-5p	-	-	aauggcacuggaagaauucacgg	guggagcucccgugucauaca	aauggcacuggaagaauucacgggggauuuaagcaaugggcccguggagcucccgugucauaca	NC_039510.1:16174034..16174098:+
+NC_039507.1_2473	192761.4		-	378085	370512	0	7573	yes	-	dme-miR-9a-5p	-	-	ucuuugguuaucuagcuguauga	auaaagcuagguuaccggaguua	ucuuugguuaucuagcuguaugaguuuuauucgacaucauaaagcuagguuaccggaguua	NC_039507.1:680182..680243:-
+NC_039511.1_6658	155809.6		-	305606	305548	0	58	yes	-	dme-miR-7-5p	-	-	uggaagacuagugauuuuguuguu	caaggaaucacuaaucauccua	uggaagacuagugauuuuguuguucuacuuucgauguaacaaggaaucacuaaucauccua	NC_039511.1:4350950..4351011:+
+NC_039509.1_20813	109351.1		-	214479	213682	0	797	yes	-	dme-miR-315-5p	-	-	uuuugauuguugcucagaaagcc	cuuucgggcaauaaucauaauc	uuuugauuguugcucagaaagccuuguuucgauacuggcuuucgggcaauaaucauaauc	NC_039509.1:1684796..1684856:-
+NC_039510.1_5617	57170		-	112129	111457	0	672	yes	-	dme-bantam-3p	-	-	ugagaucauugugaaagcugau	ugguuuucacaaugaacugacaga	ugguuuucacaaugaacugacagauagauaugauucugagaucauugugaaagcugau	NC_039510.1:14978246..14978304:+
+NC_039516.1_16173	47701.8		-	93558	93212	0	346	yes	-	dme-miR-100-5p	-	-	aacccguagauccgaacuugug	caagcuccuaucuaccgguaca	aacccguagauccgaacuugugggcuuuuuuauaugcauaccgcaagcuccuaucuaccgguaca	NC_039516.1:12353296..12353361:-
+NC_039516.1_15880	46053.9		-	90324	89970	0	354	yes	-	dme-miR-279-3p	-	-	ugacuagauccacacucauuaa	aaugaguggaggucuagugcaca	aaugaguggaggucuagugcacagucuuuaaauuugugacuagauccacacucauuaa	NC_039516.1:2946499..2946557:-
+NC_039508.1_4018	44264.5		-	86815	82875	0	3940	yes	-	dme-miR-8-3p	-	-	uaauacugucagguaaagauguc	caucuuaccgggcagcauuaga	caucuuaccgggcagcauuagauugagauuaaaguuucuaauacugucagguaaagauguc	NC_039508.1:1760328..1760389:-
+NC_039516.1_16171	34384.8		-	67435	66047	1	1387	yes	-	dme-let-7-5p	-	-	ugagguaguagguuguauagu	cuguacaacuugcuaacuuucc	ugagguaguagguuguauaguagggaauagaaauucgcgagauacgaaguccacuguacaacuugcuaacuuucc	NC_039516.1:12352475..12352550:-
+NC_039516.1_15878	31356.4		-	61497	61118	0	379	yes	-	dme-miR-279-3p	-	-	ugacuagauacauacucuucu	gacgaguaugaauguggugcacg	gacgaguaugaauguggugcacgugcgugucgcaauuucgugacuagauacauacucuucu	NC_039516.1:2946120..2946181:-
+NC_039511.1_6989	28756.2		-	56395	56356	0	39	yes	-	dme-miR-1-3p	-	-	uggaauguaaagaaguauggag	ccgugcuuccuuacuucccaua	ccgugcuuccuuacuucccauaguaaaugugacguauggaauguaaagaaguauggag	NC_039511.1:8841244..8841302:+
+NC_039517.1_17312	24414.5		-	47879	47874	0	5	yes	-	dme-miR-981-3p	-	-	uucguugucgacgaaaccugca	cggguuucgugacaggcgagcc	cggguuucgugacaggcgagccguucguaaaacuugguucguugucgacgaaaccugca	NC_039517.1:8372460..8372519:-
+NC_039506.1_1184	23739.2		-	46563	46278	2	283	no	-	dme-miR-184-3p	-	-	uggacggagaacugauaagggc	ccuuaucauuccccuguccggu	ccuuaucauuccccuguccgguguagaguuguuagacgacuggacggagaacugauaagggc	NC_039506.1:7379914..7379976:-
+NC_039506.1_5	23739.2		-	46563	46278	2	283	no	-	dme-miR-184-3p	-	-	uggacggagaacugauaagggc	ccuuaucauuccccuguccggu	ccuuaucauuccccuguccgguguagaguuguuagacgacuggacggagaacugauaagggc	NC_039506.1:533622..533684:+
+NC_039506.1_351	23027.1		-	45166	44073	0	1093	yes	-	-	-	-	ucacagccagcuuugaugauca	ccaucaaaguugguuugucau	ccaucaaaguugguuugucauagaguucgacuaucacagccagcuuugaugauca	NC_039506.1:10430098..10430153:+
+NC_039506.1_357	22196.1		-	43528	43220	7	301	yes	-	dme-miR-2a-3p	-	-	uaucacagccagcuuugaugagc	cucacaaagugguuguaauaug	cucacaaagugguuguaauaugcugaucuaauugcgcucauaucacagccagcuuugaugagc	NC_039506.1:10430856..10430919:+
+NC_039506.1_359	21276.5		-	41724	41674	0	50	yes	-	dme-miR-2a-3p	-	-	uaucacagccagcuuugaugagc	ccaucagagugguugugaugug	ccaucagagugguugugaugugcugcuauugauucauaucacagccagcuuugaugagc	NC_039506.1:10431420..10431479:+
+NC_039515.1_13967	19877.9		-	38990	38118	0	872	yes	-	-	-	-	uucucuuugguuguuaccacua	guagguaacgacugaugggaac	guagguaacgacugaugggaacagcgaauaauuuauuguuuauauuguuuauauuguucucuuugguuguuaccacua	NC_039515.1:8123151..8123229:+
+NC_039506.1_355	15954.3		-	31285	31128	55	102	yes	-	dme-miR-2a-3p	-	-	uaucacagccauuuuugacgauuu	ucgucaaauugguuguggcgug	ucgucaaauugguuguggcguguugcuccugugaauuucauaucacagccauuuuugacgauuu	NC_039506.1:10430649..10430713:+
+NC_039508.1_4236	13163.4		-	25810	25790	0	20	yes	-	dme-miR-87-3p	-	-	gugagcaaaguuucaggugugu	gggccugacucuuugcucggc	gggccugacucuuugcucggcccguacuuauauuguugggugagcaaaguuucaggugugu	NC_039508.1:7095566..7095627:-
+NC_039508.1_4234	12930.9		-	25356	25337	0	19	yes	-	dme-miR-87-3p	-	-	gugagcaaaguuucaggugugu	acgccugaaauuugcuuuuuuuaccu	acgccugaaauuugcuuuuuuuaccuggccucugcgcucucuuauugugagaaaauaaaggugagcaaaguuucaggugugu	NC_039508.1:7095358..7095440:-
+NC_039513.1_10464	12919.9		-	25340	25329	0	11	yes	-	-	-	-	ugguaacuccaccaccguuggc	caaugggguacgaguuuccuuc	ugguaacuccaccaccguuggcggaauccgacggccaaugggguacgaguuuccuuc	NC_039513.1:15242367..15242424:+
+NC_039515.1_14176	12819.9		-	25138	16501	0	8637	yes	-	dme-miR-993-5p	-	-	uacccuguagauccgaauuugu	caaauucgguucuagagagguuu	uacccuguagauccgaauuuguuugauaagaggcgacaaauucgguucuagagagguuu	NC_039515.1:12404767..12404826:+
+NC_039506.1_349	10555.1		-	20702	15381	0	5321	yes	-	-	-	-	ucucacuaucuugucuuucaug	ugaaagacauggguagugagaug	ugaaagacauggguagugagauguucucacgcaaucgcgucucacuaucuugucuuucaug	NC_039506.1:10429675..10429736:+
+NC_039516.1_15131	10543		-	20678	19321	0	1357	yes	-	-	-	-	caaugcccuuggaaaucccaaa	ugggguuucuaugcggcaugugcc	ugggguuucuaugcggcaugugccucgcuacgaaacgaacgcaaugcccuuggaaaucccaaa	NC_039516.1:3034279..3034342:+
+NC_039506.1_353	9979.9		-	19567	13206	0	6361	yes	-	dme-miR-2a-3p	-	-	uaucacagccauuuugaugagc	acaucaaauugguuguggaaug	acaucaaauugguuguggaauguuucgagucauaucacagccauuuugaugagc	NC_039506.1:10430303..10430357:+
+NC_039511.1_6725	9747.3		-	19110	18470	0	640	yes	-	dme-miR-2a-3p	-	-	caucacaggcagaguucuaguu	uggagcucuggcugugacuugu	uggagcucuggcugugacuuguguguuaaaauuauuaaaaucacaucacaggcagaguucuaguu	NC_039511.1:5506668..5506733:+
+NC_039516.1_15157	9506.7		-	18638	18519	0	119	yes	-	dme-miR-14-3p	-	-	ucagucuuuuucucucuccuau	gggggugagaaacuggcuuggcu	gggggugagaaacuggcuuggcuuauacgcaaagcaacagucagucuuuuucucucuccuau	NC_039516.1:3446779..3446841:+
+NC_039516.1_15129	8934.2		-	17516	17470	1	45	yes	-	dme-miR-193-3p	-	-	uacuggccugcuaagucccaag	ugggccuuagugguccuguggugg	ugggccuuagugguccugugguggcugcguuugaauccuacuggccugcuaagucccaag	NC_039516.1:3033553..3033613:+
+NC_039511.1_7152	7492.9		-	14689	12936	0	1753	yes	-	dme-miR-927-5p	-	-	uuuagaauuccuacgcuuuacc	caaagcguuugaaaucugaaac	uuuagaauuccuacgcuuuaccgauguucgaaguggcaaagcguuugaaaucugaaac	NC_039511.1:15008923..15008981:+
+NC_039512.1_8230	7359.8		-	14435	8342	0	6093	yes	-	-	-	-	cuuugguaauacagcucuauga	auaaagcuagauuaccaaagca	cuuugguaauacagcucuaugaguucaguucaagcgucauaaagcuagauuaccaaagca	NC_039512.1:3822381..3822441:+
+NC_039514.1_13427	6279.5		-	12308	12214	5	89	yes	-	dme-miR-252-5p	-	-	cuaaguacuagugccgcagga	cugcugcucaagugcuuauca	cuaaguacuagugccgcaggagugauuaggcugggcaagacguuaccauaucuccugcugcucaagugcuuauca	NC_039514.1:14221401..14221476:-
+NC_039508.1_3174	5199.3		-	10190	7147	0	3043	yes	-	dme-miR-305-5p	-	-	auuguacuucaucaggugcucugg	cggcaccuguuggagcgcaauuc	auuguacuucaucaggugcucuggugaauucgauacccggcaccuguuggagcgcaauuc	NC_039508.1:2195810..2195870:+
+NC_039510.1_6204	4037.7		-	7918	7892	0	26	yes	-	-	-	-	guaggccggcggaaacuacuugc	agggguuucuaucggccuccag	agggguuucuaucggccuccagcagcuacgaugguuguaggccggcggaaacuacuugc	NC_039510.1:10395052..10395111:-
+NC_039516.1_15660	3852		-	7562	6324	0	1238	no	-	-	-	-	cuuguccugguucauguaggg	ucuguauggcucaggacgauac	cuuguccugguucauguagggcggaaugguacgcaaacacucuguauggcucaggacgauac	NC_039516.1:13470561..13470623:+
+NC_039508.1_4223	3753.1		-	7353	7240	0	113	yes	-	dme-miR-190-5p	-	-	agauauguuugauuuucuuggucg	accgagaaucgaacauauuauua	agauauguuugauuuucuuggucguuugugaauaaucgaccgagaaucgaacauauuauua	NC_039508.1:6865566..6865627:-
+NC_039512.1_9616	3711.9		-	7279	7278	0	1	yes	-	-	-	-	auagagaauggugaacaacag	guuguucaccauucucuaucuccu	guuguucaccauucucuaucuccugauagagauauagagaauggugaacaacag	NC_039512.1:13292080..13292134:-
+NC_039511.1_7965	2814.1		-	5511	5491	0	20	yes	-	dme-miR-304-5p	-	-	uaaucucaugcgguaacugugag	cauauuaccucgugggguuucc	uaaucucaugcgguaacugugaguguggaaauacgaagagcucauauuaccucgugggguuucc	NC_039511.1:13436323..13436387:-
+NC_039515.1_14906	2750.3		-	5386	3127	0	2259	yes	-	dme-miR-993-3p	-	-	gaagcucgacucuacagguaucu	uacccuguagauccgggcuuuug	uacccuguagauccgggcuuuuguagaauguaaauaucagaagcucgacucuacagguaucu	NC_039515.1:12445059..12445121:-
+NC_039511.1_6991	2341.5		-	4585	4417	0	168	yes	-	dme-miR-133-3p	-	-	uugguccccuucaaccagcugu	agcugguugaacacgggucaaau	agcugguugaacacgggucaaauauaccgccaauugacgcauuugguccccuucaaccagcugu	NC_039511.1:8965496..8965560:+
+NC_039509.1_21264	2312.1		-	4527	4510	0	17	yes	-	dme-miR-285-3p	-	-	uagcaccauuagaaaucaguac	cugacuucugugugugcugggg	cugacuucugugugugcugggguaugugcuggacuuccuagcaccauuagaaaucaguac	NC_039509.1:11823754..11823814:-
+NC_039518.1_18858	1868.6		-	3664	3423	0	241	yes	-	-	-	-	uuauugcuugagaauacacguau	acgcguauucuuggggaauuaac	acgcguauucuuggggaauuaacacacauuugcgauguuauugcuugagaauacacguau	NC_039518.1:7875409..7875469:-
+NC_039508.1_3888	1845.4		-	3611	1909	0	1702	yes	-	dme-miR-281-2-5p	-	-	aagagagcuauccaucgacagu	ugucauggaguugcucucuuug	aagagagcuauccaucgacaguaugguaaugauagacacugucauggaguugcucucuuug	NC_039508.1:15840370..15840431:+
+NC_039509.1_20103	1701.7		-	3338	3322	1	15	yes	-	-	-	-	uaagcucuauguacuuucacag	guaauaguucauagagcuugaa	guaauaguucauagagcuugaaaaauuugggcgaugcuuauaacuuuaagcucuauguacuuucacag	NC_039509.1:2480009..2480077:+
+NC_039511.1_7967	1622.2		-	3173	3152	0	21	yes	-	dme-miR-283-5p	-	-	aaauaucagcugguaauucugg	caggauucuugcugguaucugg	aaauaucagcugguaauucugggauuguaacaauggcccaggauucuugcugguaucugg	NC_039511.1:13437519..13437579:-
+NC_039510.1_5868	1040.9		-	2033	2009	0	24	yes	-	dme-miR-965-3p	-	-	uaagcguauagcuuuuccccuu	ggggaaaaguuaugacgauuaug	ggggaaaaguuaugacgauuaugacaaauugaaccauaagcguauagcuuuuccccuu	NC_039510.1:3384381..3384439:-
+NC_039510.1_5344	973		-	1900	1845	2	53	yes	-	dme-miR-282-5p	-	-	uagccucuccuaggcuuugucu	acauagccuagaauagguuagg	uagccucuccuaggcuuugucuguaugggaggacagagacauagccuagaauagguuagg	NC_039510.1:8538421..8538481:+
+NC_039511.1_6651	949.1		-	1853	1113	0	740	yes	-	dme-miR-92a-3p	-	-	gauugcaccagucccggccuga	aggucuggauuaaugcaaauaug	aggucuggauuaaugcaaauauguagcauugauuucagauugcaccagucccggccuga	NC_039511.1:4272191..4272250:+
+NC_039510.1_5538	817.3		-	1602	1591	0	11	yes	-	-	-	-	uuuuagaauuuguacgcucugu	cagagcguaccgauucuuuaau	uuuuagaauuuguacgcucuguugucaugaacgauuucacagagcguaccgauucuuuaau	NC_039510.1:12415464..12415525:+
+NC_039507.1_2072	736.6		-	1443	1212	0	231	yes	-	-	-	-	gaucgaacgcgugaguuuacgu	uagacacgcgcguuggaccuua	gaucgaacgcgugaguuuacguguggcguugaagugacguagacacgcgcguuggaccuua	NC_039507.1:9022984..9023045:+
+NC_039507.1_1883	644.8		-	1257	1195	0	62	yes	-	dme-miR-92a-3p	-	-	uauugcacuugucccggccuau	aggucgagaugcgugacaauauu	aggucgagaugcgugacaauauucaauaagaaugugcuaauauugcacuugucccggccuau	NC_039507.1:3034004..3034066:+
+NC_039507.1_2374	577.4		-	1123	1087	0	36	yes	-	dme-miR-1000-5p	-	-	auauuguccugucacagcagua	cuggugugaugggacauugucc	auauuguccugucacagcaguacgccuuuaaagaguuacuggugugaugggacauugucc	NC_039507.1:15658307..15658367:+
+NC_039509.1_20954	534.5		-	1039	949	0	90	yes	-	dme-miR-279-3p	-	-	ugacuagagucacacucgucca	gacgggugugcucugguuucaug	gacgggugugcucugguuucauguggcauucuaucaugacuagagucacacucgucca	NC_039509.1:5933212..5933270:-
+NC_039514.1_13433	521		-	1013	998	0	15	yes	-	dme-miR-929-5p	-	-	aaauugacucuaguagggagu	cuuccuaauagagucaggcug	aaauugacucuaguagggagucccugcauucaauauggcgacuuccuaauagagucaggcug	NC_039514.1:14275831..14275893:-
+NC_039517.1_16458	491.1		-	962	642	0	320	no	-	dme-miR-316-5p	-	-	ugucuuuuuccgcuuugcugccg	ccagcaaaggggaacaggccga	ugucuuuuuccgcuuugcugccgcugagauggaguucgccagcaaaggggaacaggccga	NC_039517.1:4949234..4949294:+
+NC_039510.1_5594	407.3		-	797	780	1	16	yes	-	-	-	-	aauccugcaucaagugcguugcu	caaugcauugcacgcaggauagc	aauccugcaucaagugcguugcuucguucgucuucaaucagcaaugcauugcacgcaggauagc	NC_039510.1:13686760..13686824:+
+NC_039510.1_5708	353.7		-	692	558	0	134	yes	-	-	-	-	acucuaaguucgaauaccaagc	uugguguucuaccuuacagugaa	acucuaaguucgaauaccaagcccugucugcaaacagcuugguguucuaccuuacagugaa	NC_039510.1:16487270..16487331:+
+NC_039519.1_19256	343.7		-	665	562	0	103	yes	-	dme-miR-34-5p	-	-	uggcagugugguuagcugguugug	cgaccgcuaucggcacugcaauu	uggcagugugguuagcugguuguguggauaauccauauacacgaccgcuaucggcacugcaauu	NC_039519.1:7236446..7236510:+
+NC_039514.1_13431	270.3		-	528	527	0	1	yes	-	dme-miR-274-5p	-	-	uuugugaccguaacaaugggcg	cucguugcuucguucacauauc	uuugugaccguaacaaugggcgaagaauuauuugaacgcucguugcuucguucacauauc	NC_039514.1:14226982..14227042:-
+NC_039507.1_2204	242.5		-	483	382	0	101	no	-	-	-	-	uucucaaggacugaaguuggugagg	uacuuaguucggguguagaggaaggg	uucucaaggacugaaguuggugagggaaggaagguacuuaguucggguguagaggaaggg	NC_039507.1:12209618..12209678:+
+NC_039507.1_1885	219		-	421	417	0	4	yes	-	dme-miR-92a-3p	-	-	aauugcacucgucccggccugc	uagguagggaugagggcaauauuu	uagguagggaugagggcaauauuuguugauaacacgcucaaauugcacucgucccggccugc	NC_039507.1:3034199..3034261:+
+NC_039515.1_14895	205.3		-	402	363	0	39	yes	-	-	-	-	uguacguauacugaauguaucc	uauaccuucaguauacguaaca	uguacguauacugaauguauccugaguguauuccuguccgguauaccuucaguauacguaaca	NC_039515.1:11887606..11887669:-
+NC_039507.1_2203	186		-	384	382	0	2	no	-	-	-	-	uucucaaggacugaaguuggugagg	uuaauguaggaauaguaggaauggg	uuaauguaggaauaguaggaaugggcaggccgaaaaaaucgggguucucaaggacugaaguuggugagg	NC_039507.1:12209574..12209643:+
+NC_039510.1_5213	166.7		-	318	283	0	35	yes	-	dme-miR-993-5p	-	-	uacccuguaacguccugggacu	ccucacgacgugauagcggcgcc	ccucacgacgugauagcggcgcccgaguuuucgaaaugugguacccuguaacguccugggacu	NC_039510.1:6322632..6322695:+
+NC_039511.1_7963	129.4		-	245	243	0	2	yes	-	dme-miR-12-5p	-	-	agaguauugcaucagguacuggu	caguacuuguguuauacuuac	agaguauugcaucagguacuggugugauaucgaggcaaccaguacuuguguuauacuuac	NC_039511.1:13435895..13435955:-
+NC_039509.1_19997	107.9		-	211	199	0	12	yes	-	-	-	-	uugugcgugugacagcaacuau	agcugcuggccacugcacaaga	agcugcuggccacugcacaagauuagagauaacacucuugugcgugugacagcaacuau	NC_039509.1:763170..763229:+
+NC_039509.1_20131	101.2		-	200	162	0	38	yes	-	-	-	-	cauuaugcuugaaauaugaaacg	ucucauauuccagcauaacuuagcc	ucucauauuccagcauaacuuagccgagucauuauacggcauuaugcuugaaauaugaaacg	NC_039509.1:4400228..4400290:+
+NC_039512.1_8355	97		-	190	185	0	5	yes	-	-	-	-	uacuuucaauuguuugaugagg	ccaccaaacaagugagagugug	ccaccaaacaagugagagugugucaauaugggucuauacuuucaauuguuugaugagg	NC_039512.1:6991664..6991722:+
+NC_039508.1_4190	72.9		-	141	140	0	1	yes	-	-	-	-	uucggcgaugagaucagccugu	ggcugauauugucgggcggggug	ggcugauauugucgggcgggguguggaagaaguagucauuucggcgaugagaucagccugu	NC_039508.1:6375462..6375523:-
+NC_039509.1_20129	57.3		-	111	83	0	28	yes	-	-	-	-	guauuaugcucgguuuaucaac	cgguaaacagaguauaagaacuu	cgguaaacagaguauaagaacuuugcaaagcgucguuaaaaguauuaugcucgguuuaucaac	NC_039509.1:4400102..4400165:+
+NC_039511.1_7011	54.1		-	104	101	0	3	yes	-	-	-	-	aagaccauuuucauauuacag	ugugauaugagacuuggucau	ugugauaugagacuuggucaugcagaauuauugugcaugugcaagaccauuuucauauuacag	NC_039511.1:10547183..10547246:+
+NC_039511.1_7013	54.1		-	104	101	0	3	yes	-	-	-	-	aagaccauuuucauauuacag	ugugauaugagacuuggucau	ugugauaugagacuuggucaugcagaauuauugugcaugugcaagaccauuuucauauuacag	NC_039511.1:10556064..10556127:+
+NC_039512.1_9048	52.5		-	97	95	0	2	yes	-	dme-miR-285-3p	-	-	uagcaccacauuauucagcuug	agcugaaucugcaggggccacg	agcugaaucugcaggggccacguuauacuaauuuucguagcaccacauuauucagcuug	NC_039512.1:1222069..1222128:-
+NC_039509.1_19994	47.5		-	93	89	0	4	yes	-	-	-	-	uauguuucugucuuauuucauu	ugaaauaugacauaaacuuaag	uauguuucugucuuauuucauuguaaauuuacgagaugaaauaugacauaaacuuaag	NC_039509.1:757768..757826:+
+NC_039506.1_733	37.9		-	80	78	0	2	no	-	-	-	-	ucggccgagauucucgcaucu	aaagcggagauacucggcgagggac	aaagcggagauacucggcgagggacgacguucucggccgagauucucgcaucu	NC_039506.1:19010653..19010706:+
+NC_039518.1_18454	26		-	50	44	1	5	yes	-	-	-	-	agaauuguguggggacaucagc	uguccaaacgcaauucuug	uguccaaacgcaauucuugucugcacgauacgaaaucaagaauuguguggggacaucagc	NC_039518.1:355760..355820:-
+NC_039507.1_3033	18.5		-	33	23	0	10	yes	-	-	-	-	cggaggacacgaacaucgcguu	cgcgauguucguauccuccgga	cggaggacacgaacaucgcguucgaaguucgacccgacgcgauguucguauccuccgga	NC_039507.1:17313518..17313577:-
+NC_039519.1_19615	15.5		-	22	11	0	11	yes	-	dme-miR-33-5p	-	-	gugcauuguaguugcauugca	caguacuucugcagugcaacuc	gugcauuguaguugcauugcaugaaauauaacuaugcaguacuucugcagugcaacuc	NC_039519.1:6915264..6915322:-
+NC_039509.1_20882	10.2		-	20	14	0	6	yes	-	-	-	-	uucuuauacucuguuuaccga	ugauaaaccgagcauaauacuu	ugauaaaccgagcauaauacuuuuaacgacgcuuugcaaaguucuuauacucuguuuaccga	NC_039509.1:4400101..4400163:-
+NC_039509.1_20968	7.6		-	20	19	0	1	no	-	-	-	-	ucgucgcuccgaucccgcgagg	gucgcggggacggacgaggca	gucgcggggacggacgaggcaacgucguauccgucgucgcuccgaucccgcgagg	NC_039509.1:6409188..6409243:-
+NC_039515.1_14698	5.4		-	6006	5981	25	0	yes	-	dme-miR-278-3p	-	-	ucggugggacuuucguccguuu	ccggaugaagucuucaucggcc	ccggaugaagucuucaucggcccugaacguauuggaacaggucggugggacuuucguccguuu	NC_039515.1:7366134..7366197:-
+NC_039510.1_6227	5.4		-	10	4	0	6	yes	-	-	-	-	ggcgguccgauucaaauagca	gcuuucguuucggaccggcua	ggcgguccgauucaaauagcacguuguagaugcuuucguuucggaccggcua	NC_039510.1:11540255..11540307:-
+NC_039508.1_4181	5.4		-	9	5	0	4	yes	-	-	-	-	auuguaagcggauuaucggcc	ucgauagcucgcuuguaauuccagc	auuguaagcggauuaucggccaguggguuuaauggucgauagcucgcuuguaauuccagc	NC_039508.1:5490647..5490707:-
+NC_039519.1_19251	5.4		-	16621	16621	0	0	yes	-	dme-miR-317-3p	-	-	ugaacacagcuggugguaucu	agccacucugcguucacu	agccacucugcguucacucgguagguaaugaagcgggugaacacagcuggugguaucu	NC_039519.1:7217283..7217341:+
+NC_039507.1_2438	5.2		-	63436	63435	0	1	yes	-	dme-miR-263b-5p	-	-	cuuggcacuggaagaauucacaga	ggaucauccaaugccaucacu	cuuggcacuggaagaauucacagaugugcaguguguaaucguggaucauccaaugccaucacu	NC_039507.1:18947695..18947758:+
+NC_039512.1_9076	5.2		-	138098	137818	0	280	yes	-	dme-miR-279-3p	-	-	ugacuagauccacacucaucca	uggguuugaauucaguccacguu	uggguuugaauucaguccacguuucacguuuguaugcgugacuagauccacacucaucca	NC_039512.1:2127122..2127182:-
+NC_039516.1_15607	5.1		-	27	18	0	9	yes	-	dme-miR-980-3p	-	-	aagcugccuuuugaagggcaa	cggcucgucaucgggcacuuugc	cggcucgucaucgggcacuuugcuaucauaaaugcaagcugccuuuugaagggcaa	NC_039516.1:12395189..12395245:+
+NC_039508.1_3171	5.1		-	62981	62235	1	745	yes	-	dme-miR-275-3p	-	-	ucagguaccugaaguagcgcg	cgcguuacucgaguaccucaggcu	cgcguuacucgaguaccucaggcugugccaauuuaaaagucagucagguaccugaaguagcgcg	NC_039508.1:2195596..2195660:+
+NC_039509.1_20205	5.1		-	36	36	0	0	yes	-	dme-miR-1-3p	-	-	uggaauguaguuccccucgcgc	ccggggggaucgcauuccaga	ccggggggaucgcauuccagaaugccgcccacucuggaauguaguuccccucgcgc	NC_039509.1:6320734..6320790:+
+NC_039512.1_8228	5		-	1310	1171	0	139	yes	-	dme-miR-275-3p	-	-	ucagguacugagugacucug	caaagcaacucgguaccuaauu	ucagguacugagugacucugaguauaauaaaauugcucaaagcaacucgguaccuaauu	NC_039512.1:3822196..3822255:+
+NC_039514.1_13429	5		-	463	463	0	0	yes	-	dme-miR-1002-5p	-	-	uuaaguaguaacgccguagguga	aucuaggcgcuauuacuuuaua	uuaaguaguaacgccguaggugauuauuuaaaaauucaucuaggcgcuauuacuuuaua	NC_039514.1:14226418..14226477:-
+NC_039510.1_5500	4.9		-	2389	2389	0	0	yes	-	dme-miR-31b-5p	-	-	aggcaagaugucggcauagcuga	ggcugugucacauccagccaac	aggcaagaugucggcauagcugauguaguuugaaauucggcugugucacauccagccaac	NC_039510.1:12200026..12200086:+
+NC_039515.1_14566	4.8		-	164	164	0	0	yes	-	dme-miR-375-3p	-	-	uuuguucguucggcucgaguua	aaucgauccuaacgaucaacaaacu	aaucgauccuaacgaucaacaaacuuuuuauuugaaaguuuguucguucggcucgaguua	NC_039515.1:3851972..3852032:-
+NC_039516.1_15159	4.6		-	16	12	0	4	yes	-	dme-miR-2492-5p	-	-	cugggaucacggaaaacacug	gauaccguguucccccagcug	gauaccguguucccccagcuguaacgaauauuauugaaaggcucugggaucacggaaaacacug	NC_039516.1:3447517..3447581:+
+NC_039512.1_9684	4.4		-	15	15	0	0	yes	-	dme-miR-3-3p	-	-	ucacugggugauauucgucgcu	agaugaauauaauccaguuugg	agaugaauauaauccaguuuggcuugcauuugaaauccucacugggugauauucgucgcu	NC_039512.1:14294942..14295002:-
+NC_039510.1_6324	3.5		-	8	7	0	1	yes	-	-	-	-	ucugcugauucaaugucguuaau	gacgacaucgagucauuagaag	gacgacaucgagucauuagaagacuccuagauugcuucugcugauucaaugucguuaau	NC_039510.1:13594549..13594608:-
+NC_039506.1_1465	3.3		-	4	3	0	1	yes	-	-	-	-	gucguaccgcgccgacgccgug	cggcgcggugccguacggcggu	gucguaccgcgccgacgccgugcgacggcgcggugccguacggcggu	NC_039506.1:15547758..15547805:-
+NC_039506.1_708	3.1		-	4	2	0	2	yes	-	-	-	-	gagguuucacuaauuacguaagau	uugcguaauuagugaaaucuug	uugcguaauuagugaaaucuugguguaacuaaauugugucgagguuucacuaauuacguaagau	NC_039506.1:18909022..18909086:+
+NC_039511.1_6924	3		-	25	18	0	7	no	-	-	-	-	uucucagggacugaaguuggug	uuggaaugguagggaugg	uuggaaugguagggaugggcaggccggaaaaaucgggguucucagggacugaaguuggug	NC_039511.1:8272563..8272623:+
+NC_039518.1_18029	2.8		-	63	63	0	0	yes	-	-	-	-	uacgcucauuggauaucgcacg	ugcaauauccaaugagcguaca	ugcaauauccaaugagcguacaguguuuauggaaaagcuguacgcucauuggauaucgcacg	NC_039518.1:2097852..2097914:+
+NC_039513.1_10722	2.5		-	19	19	0	0	yes	-	-	-	-	uaauuuugaucaugugaccuguu	cagaucacgugaucaaaauugac	cagaucacgugaucaaaauugaccauuauccagcguuaauuuugaucaugugaccuguu	NC_039513.1:3528819..3528878:-
+NC_039510.1_6226	2.5		-	2315	1905	0	410	yes	-	-	-	-	gugauauucgcagguucgcg	cgcgaaccugcgaauaucucgu	gugauauucgcagguucgcgccaucguucucguucgcggcgcgaaccugcgaauaucucgu	NC_039510.1:11538714..11538775:-
+NC_039509.1_20819	2.4		-	48	38	0	10	yes	-	-	-	-	ccagggugcucucucucucuuu	aaagagagggagagcacccagggc	aaagagagggagagcacccagggcugcguuccgauuccacgccagggugcucucucucucuuu	NC_039509.1:2045966..2046029:-
+NC_039513.1_10083	2.4		-	17	17	0	0	yes	-	-	-	-	cacgcucauuggauaucgcacg	ugcgauauccaaugagcguaca	ugcgauauccaaugagcguacaguguuuauggaaaagcugcacgcucauuggauaucgcacg	NC_039513.1:3267942..3268004:+
+NC_039507.1_2063	2		-	3596	3515	0	81	yes	-	-	-	-	ccagaucuaacucuuccagcuca	uuggaagugaggaucuaggca	uuggaagugaggaucuaggcagugagcggccauagcucuugacaacuugccagaucuaacucuuccagcuca	NC_039507.1:8869488..8869560:+
+NC_039518.1_18415	1.9		-	25738	14795	10940	3	yes	-	-	-	-	cugaucgagaauaacccgcgcu	guuauucucgaucagugu	cugaucgagaauaacccgcgcuacacgacacgugaauuagcagagauacugaaaauaucgaaaaccacuauccacgaucauguagcgccgguuauucucgaucagugu	NC_039518.1:9150799..9150907:+
+NC_039518.1_18417	1.8		-	35160	12209	22951	0	yes	-	-	-	-	cugaucgagaauaacccgcgcu	cgcguguuauucucgaucagua	cugaucgagaauaacccgcgcuacacgacacgugaauuagcagagauacugaaaauaucgaaaaccacuguccacgaucauguagcgcguguuauucucgaucagua	NC_039518.1:9151527..9151634:+
+NC_039517.1_17082	1.8		-	22	22	0	0	yes	-	-	-	-	uaacacgucgcguccgagcugc	ggucggaggcgcguuguugcg	ggucggaggcgcguuguugcgguuacagccguaacacgucgcguccgagcugc	NC_039517.1:2705500..2705553:-
+NC_039507.1_2728	1.8		-	52	52	0	0	yes	-	-	-	-	ccgcgcgcgcgucgagcc	cucggcaugcggccacg	cucggcaugcggccacgccguaaugaauauucagacgcggcgccgcgcgcgcgucgagcc	NC_039507.1:10100234..10100294:-
+NC_039512.1_8815	1.8		-	4456	4456	0	0	yes	-	-	-	-	auagagaauggugaacaacag	guuguucaccauucucuauaucu	guuguucaccauucucuauaucucuaucaggagauagagaauggugaacaacag	NC_039512.1:13292082..13292136:+
+NC_039506.1_1154	1.5		-	35	35	0	0	yes	-	-	-	-	uggacuuuggccucauuggugg	acuaaugcaaauguccaau	acuaaugcaaauguccaauuuucauugccauuuugugugguuauaaaucgauuggacuuuggccucauuggugg	NC_039506.1:6701693..6701767:-
+NC_039506.1_37	1.5		-	35	35	0	0	yes	-	-	-	-	uggacuuuggccucauuggugg	acuaaugcaaauguccaau	acuaaugcaaauguccaauuuucauugccauuuugugugguuauaaaucgauuggacuuuggccucauuggugg	NC_039506.1:1214017..1214091:+
+NC_039515.1_14164	1.5		-	10	10	0	0	yes	-	-	-	-	uggaauugcaauaucugauucg	aaucacauguugcauucuaug	uggaauugcaauaucugauucguugccugauuucaagcaacgaaucacauguugcauucuaug	NC_039515.1:11665618..11665681:+
+NC_039514.1_13484	1.4		-	11	11	0	0	yes	-	-	-	-	auugagaguguucuuguugcag	gcaacaucgacaagcucaauug	gcaacaucgacaagcucaauuguugaugucgagucaauugagaguguucuuguugcag	NC_039514.1:15407660..15407718:-
+NC_039514.1_13488	1.4		-	11	11	0	0	yes	-	-	-	-	auugagaguguucuuguugcag	gcaacaucgacaagcucaauug	gcaacaucgacaagcucaauuguugaugucgagucaauugagaguguucuuguugcag	NC_039514.1:15408433..15408491:-
+NC_039514.1_13478	1.4		-	11	11	0	0	yes	-	-	-	-	auugagaguguucuuguugcag	gcaacaucgacaagcucaauug	gcaacaucgacaagcucaauuguugaugucgagucaauugagaguguucuuguugcag	NC_039514.1:15406494..15406552:-
+NC_039514.1_13494	1.3		-	11	11	0	0	yes	-	-	-	-	auugagaguguucuuguugcag	guaacaucggcaagcucaauug	guaacaucggcaagcucaauuguugaugucgagucaauugagaguguucuuguugcag	NC_039514.1:15409338..15409396:-
+NC_039519.1_19253	1.3		-	1299	1299	0	0	no	-	dme-miR-277-3p	-	-	uaaaugcacuaucugguacgaca	ucgugccagaugcgcguuuaca	ucgugccagaugcgcguuuacacgggcccugaaugcuguaaaugcacuaucugguacgaca	NC_039519.1:7233296..7233357:+
+NC_039514.1_13476	1.3		-	11	11	0	0	yes	-	-	-	-	auugagaguguucuuguugcag	guaacaucgacaagcucaauug	guaacaucgacaagcucaauuguugaugucgagucaauugagaguguucuuguugcag	NC_039514.1:15406115..15406173:-
+NC_039516.1_16169	1.3		-	13824	13195	4	625	no	-	dme-miR-125-5p	-	-	ucccugagacccuaacuuguga	ucacaggcuagauucucugguau	ucccugagacccuaacuugugacgucgcguccgauaucucacaggcuagauucucugguau	NC_039516.1:12351703..12351764:-
+NC_039510.1_5069	1.3		-	29	29	0	0	yes	-	-	-	-	uuuguaaucuuggucaaugugc	acauagauaaaguuuacaagug	acauagauaaaguuuacaaguggucguccauuucaauccauuuguaaucuuggucaaugugc	NC_039510.1:3044095..3044157:+
+NC_039512.1_9482	1.2		-	11	9	0	2	yes	-	-	-	-	agaaaucugugagcgagucagc	cgcucucagguuucucucugau	cgcucucagguuucucucugaugucacauagaaaucugugagcgagucagc	NC_039512.1:10049930..10049981:-
+NC_039507.1_2409	1.2		-	9	9	0	0	yes	-	-	-	-	cgcgauguucguguccuccg	gaggauacgaacaucgcguc	gaggauacgaacaucgcgucgggucgaacuucgaacgcgauguucguguccuccg	NC_039507.1:17313522..17313577:+
+NC_039510.1_5814	1.2		-	7	7	0	0	yes	-	dme-miR-8-5p	-	-	aaucuuacaaaucaucccucgau	ugacuagaggugaacuuguaagauuca	ugacuagaggugaacuuguaagauucacgugaaucuuacaaaucaucccucgau	NC_039510.1:2610473..2610527:-
+NC_039508.1_4823	1.1		-	156	133	0	23	yes	-	-	-	-	ucagacacaaucgcuuaucgug	cgauagaggauuguuuuuggag	ucagacacaaucgcuuaucgugagaaguugaaguugcgauagaggauuguuuuuggag	NC_039508.1:12916886..12916944:-
+NC_039509.1_20953	1		-	952	949	3	0	no	-	dme-miR-279-3p	-	-	ugacuagagucacacucgucca	gacgcucgugugcucgaacgug	ugacuagagucacacucguccagcgaccgggacacucucgccggaaacuaucgcauaggacgcucgugugcucgaacgug	NC_039509.1:5933154..5933234:-
+NC_039509.1_21310	1		-	9	9	0	0	yes	-	-	-	-	cugccaacaaugugcucgcgucu	ucagcgagcacauggcggcggcg	ucagcgagcacauggcggcggcguggcgaucgcugccaacaaugugcucgcgucu	NC_039509.1:15134957..15135012:-
+NC_039514.1_13475	0.9		-	11	11	0	0	yes	-	-	-	-	auugagaguguucuuguugcag	gcgugggagaaaauucuuccugc	auugagaguguucuuguugcagcagcgguugcugcugcugcgugggagaaaauucuuccugc	NC_039514.1:15406075..15406137:-
+NC_039507.1_2065	0.9		-	1623	1623	0	0	no	-	dme-miR-958-3p	-	-	ugagauucaacuccuccaacuu	guggagcaguggucucuacgcu	guggagcaguggucucuacgcuuuguaugaaagugagauucaacuccuccaacuu	NC_039507.1:8869667..8869722:+
+NC_039508.1_3241	0.7		-	2	2	0	0	yes	-	dme-miR-9380-3p	-	-	acuccaacuuguugcacuagcuc	accagugcaaucaguuggaauga	accagugcaaucaguuggaaugaaagaaauauacuuucuuucacuccaacuuguugcacuagcuc	NC_039508.1:3931440..3931505:+
+NC_039507.1_2695	0.6		-	195	195	0	0	yes	-	-	-	-	uucacgugccguguagcgca	cguuacauugacauguaccac	uucacgugccguguagcgcacgagcauuuuucgcgauguccgcugaugcucguuucguuacauugacauguaccac	NC_039507.1:8305107..8305183:-
+NC_039511.1_7048	0.3		-	19	16	0	3	no	-	-	-	-	ucuuuaagauauuggcauguuaa	aaaugcuuguuucuuaacgaua	ucuuuaagauauuggcauguuaauaucuguagaugguugcaacauuaaaugcuuguuucuuaacgaua	NC_039511.1:11952257..11952325:+
+NC_039511.1_8068	0.3		-	9	9	0	0	yes	-	-	-	-	ugggccuuugucgauuacgugga	gagguagucgauaaaggguggccagc	gagguagucgauaaaggguggccagccuugucggcugggccuuugucgauuacgugga	NC_039511.1:16407866..16407924:-
+NC_039506.1_187	0		-	7	4	0	3	yes	-	-	-	-	aacgccugucccuuuuggcaua	ccaaaagggacgggcgugccu	ccaaaagggacgggcgugccuguuuccgcagaggaacgccugucccuuuuggcaua	NC_039506.1:4977268..4977324:+
