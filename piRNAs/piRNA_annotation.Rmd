@@ -1,0 +1,1607 @@
+---
+title: "piRNA_annotation_report"
+author: "KRG"
+date: "2022-09-27"
+output: 
+  html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(Herper)
+library(CLIPflexR)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(Biostrings)
+library(rtracklayer)
+library(BSgenome)
+library(GenomicFeatures)
+library(GenomicRanges)
+library(ChIPseeker)
+library(data.table)
+library(ggseqlogo)
+library(matrixStats)
+library(eulerr)
+library(gridExtra)
+library(grid)
+
+# library(devtools)
+# install_github("RockefellerUniversity/Herper"
+# Herper::install_CondaTools(tools = c("python=2.7.18",
+#                                      "numpy",
+#                                      "argparse"),
+#                            env = "pilfer",
+#                            pathToMiniConda = "/Users/kathryn/Miniconda3",updateEnv = TRUE)
+# download.file("https://github.com/rishavray/PILFER/archive/refs/heads/master.zip",
+#               "pilfer.zip")
+#unzip pilfer-master and move out of downloads
+Herper::local_CondaEnv(new = "pilfer",
+                       pathToMiniConda = "/Users/kathryn/Miniconda3")
+```
+
+## Process small RNA-seq data using Pilfer pipeline
+
+```{r process,  fig.align='center', echo=FALSE, warning=FALSE, message=FALSE}
+seq_dir <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/Kronauer-KL-12321_2022_05_17"
+#fastq1<- list.files(path = file.path(seq_dir), pattern = "*R1_001.fastq.gz$", full.names = TRUE)
+
+#This is just a repeat of miRDeep, written in here so one can follow along
+#decompress fastq/gz's
+#tofilt<- vector(mode = "list", length = length(fastq1))
+# for (i in 1:length(fastq1)) {
+#   tofilt[i] <- decompress(fastq1[i])
+# }
+
+#quality filter (fastx)
+#tofilt <- unlist(tofilt)
+# QF  <- lapply(tofilt, fastq_quality_filter)
+
+#clip adaptor (NEXTFLEX Small RNA-Seq Kit v3 manual)
+#clipped <- vector(mode = "list", length = length(QF))
+# for (i in 1:length(QF)) {
+# clipped[i] <- fastx_clipper(QF[i], adapter = "TGGAATTCTCGGGTGCCAAGG", length = 23, verbose=T, qEncoding = 33)}
+# clipped <- unlist(clipped)
+
+#re-trim and write as fastq, for miRDeep did it as fasta - actually it is ok to do as fasta as long as you specify the collapse format properly, but I wanted to follow their formats exactly to make sure everything is as they ran it 
+
+#trim 4 nt from either side (NEXTFLEX Small RNA-Seq Kit v3 manual)
+clipped <- dir(seq_dir, pattern="*clip.fastq",full.names = TRUE)
+# x <- vector(mode = "list", length = length(clipped))
+# names(x) <- gsub("Kronauer-KL-12321_2022_05_17", "pilfer", clipped)
+# for (i in 1:length(clipped)){
+# x[[i]] <- readDNAStringSet(clipped[i], format = "fastq")
+# x[[i]] <- narrow(x[[i]], start =5, end = width(x[[i]])-4)
+# names(x[[i]]) <- gsub(" ","",names(x[[i]]) )
+# writeXStringSet(x[[i]], gsub("clip.fastq", "clip_trim.fastq", names(x[i])),  format = "fastq")
+# }
+
+base_dir <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer"
+pro <- dir(base_dir, pattern="*clip_trim.fastq$",full.names = TRUE)
+#c <- vector(mode = "list", length = length(pro))
+#compressing clipped/trimmed reads to get proper input for collapse.py
+# for (i in  1:length(pro)){
+#   c[i] <- compress(pro[i])
+# }
+
+# Pilfer collapse line:
+# python $tools_dir"collapse.py" -i $sample_dir_prefix$prefix".fastq.gz" -o $out_dir_prefix"collapse/"$prefix".fa" --format fastq	
+# writes out in fa format with gz extension no matter what
+
+# via R:
+c <-paste0(pro,".gz")
+cmd <- vector(mode = "list", length = length(c))
+# for (i in 1:length(c)){
+#   cmd[i] <- paste0("python2.7 /Users/kathryn/PILFER-master/tools/collapse.py -i ", c[i], " -o ", gsub("clip_trim.fastq.gz", "clip_trim_py_coll.fa", c[i]), " --format fastq")
+# system(cmd[[i]])}
+
+# Need to map collapsed small RNAseq to genome first
+
+# make new index with Mt DNA added to make sure no false positives on other chroms
+# NCBI_ref <- readDNAStringSet("/Volumes/Kathryn/BRC_Kip/GCF_003672135.1_Obir_v5.4_genomic.fna")
+# GB_ref <- readDNAStringSet("/Volumes/Kathryn/BRC_Kip/GenBank_ref/GCA_003672135.1_Obir_v5.4_genomic.fna")
+# Mt <- GB_ref[grepl("CM010870.1", names(GB_ref))]
+# NCBI_mt <- c(NCBI_ref, Mt)
+# writeXStringSet(NCBI_mt, "/Volumes/Kathryn/BRC_Kip/Obiroi_Refseq_plus_Mt/GCF_003672135.1_Obir_v5.4_genomic_Mt_add.fna", format = "fasta")
+
+# Built new index (RefSeq+Mt) using R system call:
+# system("/Users/kathryn/bowtie-1.2.2-macos-x86_64/bowtie-build /Volumes/Kathryn/BRC_Kip/Obiroi_Refseq_plus_Mt/GCF_003672135.1_Obir_v5.4_genomic_Mt_add.fna /Volumes/Kathryn/BRC_Kip/Obiroi_Refseq_plus_Mt/Obir_v5.4_Mt")
+
+# Kip also asked me to check with masked chr4 repeat region
+# read in his chr4 and replace RefSeq chr4 
+# chr4 <- readDNAStringSet("/Volumes/Kathryn/BRC_Kip/Obiroi_Refseq_Mt_chr4mask/Chr4_with_21571-39095_hardMasked.fasta")
+# check how much sequence is unassembled
+# letterFrequency(NCBI_mt$`NC_039509.1 Ooceraea biroi isolate clonal line C1 chromosome 4, Obir_v5.4, whole genome shotgun sequence`, "N") #1800
+# letterFrequency(chr4, "N") #19325;good makes sense, Kip said he masked Chr4:21571-39095
+# names(chr4) <- grep("chromosome 4",names(NCBI_mt), value = T )
+
+# NCBI_mt$`NC_039509.1 Ooceraea biroi isolate clonal line C1 chromosome 4, Obir_v5.4, whole genome shotgun sequence` <- NULL
+# NCBI_mt_chr4 <- c(NCBI_mt,chr4)
+
+# length(NCBI_ref$`NC_039509.1 Ooceraea biroi isolate clonal line C1 chromosome 4, Obir_v5.4, whole genome shotgun sequence`) #17779965
+# length(NCBI_mt_chr4$`NC_039509.1 Ooceraea biroi isolate clonal line C1 chromosome 4, Obir_v5.4, whole genome shotgun sequence`)
+# 17779965, good lengths are the ame
+
+# writeXStringSet(NCBI_mt_chr4, "/Volumes/Kathryn/BRC_Kip/Obiroi_Refseq_Mt_chr4mask/GCF_003672135.1_Obir_v5.4_genomic_Mtadd_chr4mask.fna", format = "fasta")
+
+# Built new index (RefSeq+Mt+chr4 mask) using R system call:
+# system("/Users/kathryn/bowtie-1.2.2-macos-x86_64/bowtie-build /Volumes/Kathryn/BRC_Kip/Obiroi_Refseq_Mt_chr4mask/GCF_003672135.1_Obir_v5.4_genomic_Mtadd_chr4mask.fna /Volumes/Kathryn/BRC_Kip/Obiroi_Refseq_Mt_chr4mask/Obir_v5.4_Mt_chr4mask")
+
+# Map to each index
+
+# Pilfer genome map line:
+# gzip -d -c $out_dir_prefix"collapse/"$prefix".fa.gz" | bowtie -p 8 <hg19 index> -f - -k 300 -l 22 -v 1 -n 1 -S ./hg19_sam/$prefix.sam 2> ./logs/bowtie1/"$prefix"_bowtie1.log
+
+# via R:
+Mt_index <- "/Volumes/Kathryn/BRC_Kip/Obiroi_Refseq_plus_Mt/Obir_v5.4_Mt"
+coll <- dir(base_dir, pattern="*py_coll.fa.gz",full.names = TRUE)
+cmd2a <- vector(mode = "list", length = length(coll))
+# for (i in 1:length(coll)){
+#   cmd2a[i] <- paste0("gzip -d -c ",  coll[i], " | bowtie -p 8 ", Mt_index, " -f - -k 300 -l 22 -v 1 -n 1 -S ", gsub("_L001_R1_001_clip_trim_py_coll.fa.gz", ".sam",coll[i]), " 2> ", gsub("L001_R1_001_clip_trim_py_coll.fa.gz", "bowtie.log", coll[i]))
+# system(cmd2a[[i]])}
+
+# Kip_index <- "/Volumes/Kathryn/BRC_Kip/Obiroi_Refseq_Mt_chr4mask/Obir_v5.4_Mt_chr4mask"
+# cmd2b <- vector(mode = "list", length = length(coll))
+# for (i in 1:length(coll)){
+#   cmd2b[i] <- paste0("gzip -d -c ",  coll[i], " | bowtie -p 8 ", Kip_index , " -f - -k 300 -l 22 -v 1 -n 1 -S ", paste0("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/pilfer_chr4_mask/" ,gsub("_L001_R1_001_clip_trim_py_coll.fa.gz", ".sam",basename(coll[i]))), " 2> ", paste0("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/pilfer_chr4_mask/", gsub("_L001_R1_001_clip_trim_py_coll.fa.gz", "_bowtie.log", basename(coll[i]))))
+# system(cmd2b[[i]])}
+
+# Next, Pilfer maps to known piRNAs; we don't have these for ant, but try mapping to dme piRNAs and see how it goes
+# Need to build dme piRNA index 
+# They wrote the names eg: hsa-piR00852|DQ571066|-|26
+# This format is important for downstream annotate_sam.py! Uses the "|" delims to grab names
+# Got dme pis from piRNA bank, put names into the right format, keep unique, and rewrite fasta to build index
+# dme_pi <- readDNAStringSet("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/dme_piRNAs/drosophila_pir.fa")
+# length(unique(dme_pi))
+# names(dme_pi) <- gsub("dme_piR_", "dme-",names(dme_pi))
+# names(dme_pi)<- str_split_fixed(names(dme_pi), ":", 5) %>% {paste0(.[,1], "|", .[,5])}
+# names(dme_pi) <- ifelse(!grepl("gb", names(dme_pi)), gsub("Drosophila melanogaster", "X", names(dme_pi)), gsub("Drosophila melanogaster\\|", "", names(dme_pi)))
+# names(dme_pi) <- ifelse(grepl("gb", names(dme_pi)), gsub("gb\\|", "", names(dme_pi)), names(dme_pi))
+# names(dme_pi) <- ifelse(grepl("Plus", names(dme_pi)),  gsub("\\|Plus", "|+|",names(dme_pi)), gsub("\\|Minus", "|-|",names(dme_pi)) )
+# names(dme_pi) <- paste0(names(dme_pi), width(dme_pi))
+
+# get unique
+# dme_pi_u <- unique(dme_pi)
+# length(unique(dme_pi_u)) #18508
+# check unique names
+# for names of format dme-000005|X|+|26, where no piRNAbank ID, have + and - but they are the same seq; this is how it is in og piRNA file from piRNA bank
+# for names of format dme-022265|AB297083|+|25, with piRNAbank ID, have + and - but they are the same seq; this is how it is in og piRNA file from piRNA bank
+# in these cases just takes the first name, so strand info may not be relevant
+# length(dme_pi_u) #18508,  good, same as original file
+
+# write and make new index
+# writeXStringSet(dme_pi_u, "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/dme_piRNAs/dme_unique_piRNAs_rn.fa", format = "fasta")
+
+# build index using R system call: 
+# system("/Users/kathryn/bowtie-1.2.2-macos-x86_64/bowtie-build /Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/dme_piRNAs/dme_unique_piRNAs_rn.fa /Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/dme_piRNAs/dme_piRNAs")
+
+# Pilfer piRNA map line:
+# gzip -d -c $out_dir_prefix"collapse/"$prefix".fa.gz" | bowtie -p 8 tools/pirna/pirna_uniq --norc -f - -a -v 1 -n 0 -l 26 -S ./pirna_sam/$prefix.sam 2> ./logs/pirna_map/$prefix.log
+
+# via R:
+dme_pi <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/dme_piRNAs/dme_piRNAs"
+cmd3a <- vector(mode = "list", length = length(coll))
+# for (i in 1:length(coll)){
+#   cmd3a[i] <- paste0("gzip -d -c ",  coll[i], " | bowtie -p 8 ", dme_pi , " --norc -f - -a -v 1 -n 0 -l 26 -S ", gsub("L001_R1_001_clip_trim_py_coll.fa.gz", "pi.sam",coll[i]), " 2> ", gsub("L001_R1_001_clip_trim_py_coll.fa.gz", "bowtie_pi.log", coll[i]))
+# system(cmd3a[[i]])}
+
+# Pilfer piRNA sam filter line:
+# samtools view -F 4 -S $out_dir_prefix"pirna_sam/"$prefix.sam | python $tools_dir"sam_filter.py" > $out_dir_prefix"pirna_sam/filter/"$prefix"_filtered.sam"
+
+# via R:
+pimap <- dir(base_dir, pattern="pi.sam",full.names = TRUE)
+cmd4a <- vector(mode = "list", length = length(pimap))
+# for (i in 1:length(pimap)){
+#   cmd4a[i] <- paste0("samtools view -F 4 -S ",  pimap[i], " | python2.7 /Users/kathryn/PILFER-master/tools/sam_filter.py > ", gsub("pi.sam", "pi_filtered.sam",pimap[i]))
+# system(cmd4a[[i]])} 
+
+# Pilfer line to generate known dme piRNA file (piRNAs present in data)
+# cut -f10 ./pirna_sam/filter/* | sort | uniq > $out_dir_prefix"known_pirna"
+
+# using R system call
+# system("cut -f10 /Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/*pi_filtered.sam | sort | uniq > /Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/known_dme_n1_piRNA") 
+# gave 237
+
+# Check how changing the mapping params affects number of "dme" piRNAs I detect in Kip's data 
+
+# set n=1, instead of 0
+cmd3b <- vector(mode = "list", length = length(coll))
+#  for (i in 1:length(coll)){
+#   cmd3b[i] <- paste0("gzip -d -c ",  coll[i], " | bowtie -p 8 ", dme_pi , " --norc -f - -a -v 1 -n 1 -l 26 -S ", gsub("L001_R1_001_clip_trim_py_coll.fa.gz", "pi_n1.sam",coll[i]), " 2> ", gsub("L001_R1_001_clip_trim_py_coll.fa.gz", "bowtie_pi_n1.log", coll[i]))
+# system(cmd3b[[i]])}
+
+pimap_n1 <- dir(base_dir, pattern="pi_n1.sam",full.names = TRUE)
+cmd4b <- vector(mode = "list", length = length(pimap_n1))
+# for (i in 1:length(pimap_n1)){
+#   cmd4b[i] <- paste0("samtools view -F 4 -S ",  pimap_n1[i], " | python2.7 /Users/kathryn/PILFER-master/tools/sam_filter.py > ", gsub("pi_n1.sam", "pi_n1_filtered.sam",pimap_n1[i]))
+# system(cmd4b[[i]])}
+
+# system("cut -f10 /Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/*pi_n1_filtered.sam | sort | uniq > /Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/known_dme_n1_piRNA")
+# gave 4018 
+
+# set n=2, instead of 0
+cmd3c <- vector(mode = "list", length = length(coll))
+#  for (i in 1:length(coll)){
+#   cmd3c[i] <- paste0("gzip -d -c ",  coll[i], " | bowtie -p 8 ", dme_pi , " --norc -f - -a -v 1 -n 2 -l 26 -S ", gsub("L001_R1_001_clip_trim_py_coll.fa.gz", "pi_n2.sam",coll[i]), " 2> ", gsub("L001_R1_001_clip_trim_py_coll.fa.gz", "bowtie_pi_n2.log", coll[i]))
+# system(cmd3c[[i]])}
+
+pimap_n2 <- dir(base_dir, pattern="pi_n2.sam",full.names = TRUE)
+cmd4c <- vector(mode = "list", length = length(pimap_n2))
+# for (i in 1:length(pimap_n2)){
+#   cmd4c[i] <- paste0("samtools view -F 4 -S ",  pimap_n2[i], " | python2.7 /Users/kathryn/PILFER-master/tools/sam_filter.py > ", gsub("pi_n2.sam", "pi_n2_filtered.sam",pimap_n2[i]))
+# system(cmd4c[[i]])}
+
+# system("cut -f10 /Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/*pi_n2_filtered.sam | sort | uniq > /Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/known_dme_n2_piRNA")
+# gave 4018 
+
+# checking how changing n param changes mapping to dme piRNAs
+# n0 <- read.delim("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/QF_Eggs_S1_pi.sam", header = F, sep = "\t", comment.char = "@")
+# n1 <- read.delim("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/QF_Eggs_S1_pi_n1.sam", header = F, sep = "\t", comment.char = "@")
+# n2 <- read.delim("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/QF_Eggs_S1_pi_n2.sam", header = F, sep = "\t", comment.char = "@")
+
+# there are always 30 exact matches
+# t0 <- vmatchPattern("TATCACAGCCAGCTTTGATGAGCTA", n0$V10) 
+# unlist(startIndex(t0)) #2 matches
+# for "TATCACAGCCAGCTTTGAGGAGCG", dme-000062|X|-|24; 4 maxthes
+
+# t1 <- vmatchPattern("TATCACAGCCAGCTTTGATGAGCTA", n1$V10)  
+# unlist(startIndex(t1)) #3 matches,allows one match: TATCACAGCCAGCTTTGATGAGCTT, corresponding to dme-007334|X|-|25 instead  of  dme-000019|X|-|25, with one mismatch, good
+# for "TATCACAGCCAGCTTTGAGGAGCG", dme-000062|X|-|24; 4 matches
+
+# t2 <- vmatchPattern("TATCACAGCCAGCTTTGATGAGCTA", n2$V10)  
+# unlist(startIndex(t2)) #still 3
+# for "TATCACAGCCAGCTTTGAGGAGCG", dme-000062|X|-|24; 6 matches
+# allowed dme-007334|X|-|25, TATCACAGCCAGCTTTGATGAGCTT, 2 mismatch
+# allowed dme-000019|X|-|25, TATCACAGCCAGCTTTGATGAGCTA, 2 mismatch
+
+# so setting n does change mismatches allowed; but then difference between 1 and 2 mismatches is lost in the sam filtering step; think it is ok though, sam filtering allows edit dist of 1 and diff in seq length of 2
+
+# checking that porportion of dme piRNAs found is similar to human ones
+dme_pi_u <- readDNAStringSet("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/dme_piRNAs/dme_unique_piRNAs_rn.fa", format = "fasta")
+# 
+known_dme_n1_pi <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/known_dme_n1_piRNA"
+# dpi_n1_file <- read.delim(known_dme_n1_pi, header = F) #so got 4018/18508; with human got 3193/26719
+
+# Pilfer line to annotate putative or "known" piRNAs in genome-mapped sam - append "PI" if known and "PU" if read count >=100 and length of 24-33 
+# echo $prefix
+# 	samtools view -h -F 4 $out_dir_prefix"hg19_sam/"$prefix.sam | python $tools_dir"annotate_sam.py" $out_dir_prefix"known_pirna" | samtools view -bh -S - > $out_dir_prefix"hg19_sam/"$prefix.bam
+
+# via R:
+obiroi_sam <- dir(base_dir, pattern=".sam$",full.names = TRUE)
+obiroi_sam <- obiroi_sam[!grepl("pi", basename(obiroi_sam))]
+obiroi_sam <- obiroi_sam[!grepl("sort", basename(obiroi_sam))]
+cmd6a <- vector(mode = "list", length = length(obiroi_sam))
+# for (i in 1:length(obiroi_sam)){
+#   cmd6a[i] <- paste0("samtools view -h -F 4 ",  obiroi_sam[i], " | grep -v @PG | python2.7 /Users/kathryn/PILFER-master/tools/annotate_sam.py ", known_dme_n1_pi, " | samtools view -bh -S - > ", gsub(".sam", "_ann_sam_out.bam", obiroi_sam[i]))
+# system(cmd6a[[i]])}
+
+# because a read count of 100 is very high, I modified the annotate_sam.py script to accept a read depth of >=20, and length of 24-33 and wrote it as "annotate_sam_mod_filt.py"
+# this cutoff was determined by looking at the distribution of the expression of "known" (dme piRNAs); see line 328 below
+cmd6b <- vector(mode = "list", length = length(obiroi_sam))
+# for (i in 1:length(obiroi_sam)){
+#   cmd6b[i] <- paste0("samtools view -h -F 4 ",  obiroi_sam[i], " | grep -v @PG | python2.7 /Users/kathryn/PILFER-master/tools/annotate_sam_mod_filt.py ", known_dme_n1_pi, " | samtools view -bh -S - > ", gsub(".sam", "_ann_sam_out_lax.bam", obiroi_sam[i]))
+# system(cmd6b[[i]])} 
+
+# Pilfer line to extract "known" and putative piRNAs in bed format 
+# samtools view ./hg19_sam/$prefix.bam | python $tools_dir"extract_read.py" | sort -V -k1,1 -k2,2 > $out_dir_prefix"bed/putative/"$prefix.bed
+
+#via R:
+ann_bam <- dir(base_dir, pattern="ann_sam_out.bam|ann_sam_out_lax.bam",full.names = TRUE)
+cmd7 <- vector(mode = "list", length = length(ann_bam))
+# for (i in 1:length(ann_bam)){
+#   cmd7[i] <- paste0("samtools view ",  ann_bam[i], " | python2.7 /Users/kathryn/PILFER-master/tools/extract_read.py | sort -V -k1,1 -k2,2 > ", gsub(".bam", ".bed", ann_bam[i]))
+# system(cmd7[[i]])} 
+
+# Next, need to remove already annotated non-coding RNAs from piRNAs
+# make ncRNA file, check what categories are in the human one
+# ncrna <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/test_data/gencode28-human-ncRNA.bed"
+# ncfile <- read.delim(ncrna, header=F, sep="\t")
+# classes <- as.data.frame(str_split_fixed(ncfile$V10, ";", 4)[,2:3])
+# classes$type <- ifelse(grepl("gene_type", classes$V1), paste0(classes$V1), paste0(classes$V2)) 
+# unique(classes$type) #miRNA, snRNA, snoRNA, rRNA, Mt_rRNA -  not tRNA, not sure why - I will include; in my case, no gene type annotation available for mt DNA, so will have to drop that one
+
+# gtf <- import("/Volumes/Kathryn/BRC_Kip/GCF_003672135.1_Obir_v5.4_genomic.gtf")
+# unique(gtf$gene_biotype) #here have also tRNA, snRNA, snoRNA, rRNA
+
+# make data frame of obir ncRNAs:
+# nc_classes <- "miRNA|snRNA|snoRNA|tRNA|rRNA"
+# obir_nc <- gtf[grepl(nc_classes, gtf$gene_biotype),] #use gene biotype to grab - miRNA (get whole precursor loci), snRNA, snoRNA, rRNA, tRNA
+# obir_nc_bed <- data.frame(seqnames = obir_nc@seqnames, start = obir_nc@ranges@start-1, end = (obir_nc@ranges@start-1)+obir_nc@ranges@width, gene_id = paste0(obir_nc$gene_id, ":" ,obir_nc$gene_biotype), score = obir_nc$score, strand=obir_nc@strand) #fix 0-based numbering for import by rtracklayer, would have to add 1 if read.delim
+
+# add miRNAs (from Refseq+Mt)
+# miRNAs <- read.table("/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep/miRDeep_Mt/precursor.bed", header = F,  sep = "\t")
+# colnames(miRNAs) <-  colnames(obir_nc_bed)
+# miRNA_GR <- as(miRNAs, "GRanges")
+# nc_GR <- as(obir_nc_bed, "GRanges")
+# overlapsAny(miRNA_GR, nc_GR) 
+# overlapsAny(nc_GR, miRNA_GR) #none overlapping, good
+# obir_nc_bed <-  rbind(obir_nc_bed,  miRNAs)
+# write.table(obir_nc_bed, "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/Obir_ncRNA.bed", col.names = F, quote = F, sep = "\t", row.names = F)
+
+# Pilfer line to subtract ncRNAs 
+# bedtools subtract -b <ncrna.bed> -a $out_dir_prefix"bed/putative/"$prefix.bed -s -f 0.5 -A > $out_dir_prefix"bed/ncrna_subtract_putative/"$prefix.bed
+
+# via R:
+beds <- dir(base_dir, pattern="bed",full.names = TRUE)
+beds <- grep("ann_sam_out", beds, value = T)
+beds <- grep("subtract_ncRNA", beds, value = T, invert = T)
+obir_ncRNA <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/Obir_ncRNA.bed"
+cmd8 <- vector(mode = "list", length = length(beds))
+# for (i in 1:length(beds)){
+#   cmd8[i] <- paste0("bedtools subtract -b  ",  obir_ncRNA , " -a ", beds[i], " -s -f 0.5 -A > ", gsub(".bed", "_subtract_ncRNA.bed", beds[i]))
+# system(cmd8[[i]])} 
+
+# After I subtracted ncRNA, I looked at the distribution of read counts in "known" or putative piRNAs; see next chunk
+
+# Run core pilfer algorithm to annotate piRNA clusters
+
+# Pilfer line to annotate piRNA clusterss:
+# python $tools_dir"pilfer.py" -i $out_dir_prefix"bed/ncrna_subtract_putative/"$prefix.bed > $out_dir_prefix"bed/cluster/"$prefix
+
+# via R:
+bed_nonc <- dir(base_dir, pattern="subtract_ncRNA.bed",full.names = TRUE)
+bed_nonc <- grep("_nk", bed_nonc,invert = T, value = T)
+bed_nonc <- grep("all", bed_nonc,invert = T, value = T)
+bed_nonc_og <- grep("lax", bed_nonc,invert = T, value = T)
+bed_nonc_lax <- grep("lax", bed_nonc, value = T)
+
+out_og <- gsub("pilfer/", "pilfer/cluster/",bed_nonc_og)
+out_og  <- gsub("_subtract_ncRNA.bed", "",out_og )
+
+out_lax <- gsub("pilfer/", "pilfer/cluster_lax/",bed_nonc_lax)
+out_lax  <- gsub("_subtract_ncRNA.bed", "",out_lax )
+
+# dir.create("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/cluster/")
+# dir.create("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/cluster_lax/")
+
+cmd9a <- vector(mode = "list", length = length(bed_nonc_og))
+# for (i in 1:length(bed_nonc_og)){
+#   cmd9a[i] <- paste0("python2.7 /Users/kathryn/PILFER-master/tools/pilfer.py -i ", bed_nonc_og[i], " > ", out_og[i])
+# system(cmd9a[[i]])} 
+
+# how is pilfer designating the clusters?
+# pilfer_out <- lapply(out_og, read.delim, header = F)
+# names(pilfer_out)<- gsub("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/cluster/", "", out_og)
+# names(pilfer_out)<- gsub("_ann_sam_out", "", names(pilfer_out))
+# pilfer_out_df <- rbindlist(pilfer_out, idcol=T)
+# pilfer_out_df$seqnames <- str_split_fixed(pilfer_out_df$V1, ":",2)[,1]
+# pilfer_out_df$ranges <- str_split_fixed(pilfer_out_df$V1, ":",2)[,2]
+# pilfer_out_df$start <- str_split_fixed(pilfer_out_df$ranges, "-",2)[,1]
+# pilfer_out_df$end <- str_split_fixed(pilfer_out_df$ranges, "-",2)[,2]
+# pilfer_bed <- data.frame(seqnames=pilfer_out_df$seqnames, start=pilfer_out_df$start, end=pilfer_out_df$end, name=pilfer_out_df$.id, score = pilfer_out_df$V2)
+# # write.table(pilfer_bed, "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/cluster/pilfer_cat.bed", col.names=F, quote = F, sep = "\t", row.names = F)
+# pilfer_out_df <- pilfer_out_df %>% mutate(width = as.numeric(end) - as.numeric(start)) #ok, pilfer.py  joining them into clusters based on 100kb sliding window with the best score, for each sample
+
+cmd9b<- vector(mode = "list", length = length(bed_nonc_lax))
+# for (i in 1:length(bed_nonc_lax)){
+#   cmd9b[i] <- paste0("python2.7 /Users/kathryn/PILFER-master/tools/pilfer.py -i ", bed_nonc_lax[i], " > ", out_lax[i])
+# system(cmd9b[[i]])} 
+
+# Pilfer line to make tsv with score column for each sample, for each cluster 
+# python union.py prefix_list /bed/cluster/ > cluster_union.tsv 
+# python union.py prefix_list $out_dir_prefix/bed/cluster/ > cluster_union.tsv #I added outdir prefix cause wasn't working without path
+
+# need to make prefix_list file; each sample name without files extension in a new row and names should match cluster output (no extension); and prefix list should have no extension
+
+# via R:
+clust_dir <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/cluster"
+clust <- data.frame(name = dir(clust_dir, pattern="QF*",full.names = F))
+# write.table(clust,"/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/prefix_list", col.names = F, row.names = F, quote = F)
+prefix_list <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/prefix_list"
+
+clust_dir_lax<- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/cluster_lax"
+clust_lax <- data.frame(name = dir(clust_dir_lax, pattern="QF*",full.names = F))
+# write.table(clust_lax,"/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/prefix_list_lax", col.names = F, row.names = F, quote = F)
+prefix_list_lax <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/prefix_list_lax"
+
+cmd10a <- paste0("python2.7 /Users/kathryn/PILFER-master/tools/union.py", paste0(" ",prefix_list, " ",clust_dir, "/"), " > /Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/cluster/cluster_union.tsv") 
+# system(cmd10a)
+
+cmd10b <- paste0("python2.7 /Users/kathryn/PILFER-master/tools/union.py", paste0(" ",prefix_list_lax, " ",clust_dir_lax, "/"), " > /Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/cluster_lax/cluster_union_lax.tsv") 
+# system(cmd10b)
+
+# Pilfer line to convert cluster tsv to bedfile - no strand info or scores, just ranges
+# awk 'NR>1{print $1}' cluster_union.tsv | tr ":" "\t" | tr "-" "\t" | sort -V -k1,1 -k2,2 > $out_dir_prefix"bed/clusters.bed"
+# I tested this and single quotes around :, - , and \t symbols performed the same, so use that as it is easier than  double quotes for regex:
+# e.g.:
+# cmd11 <- paste0("awk 'NR>1{print $1}' ", clust_tsv, paste0(" | tr \":\" "), paste0("\"\\t\""), paste0(" | tr \"-\" "),  paste0("\"\\t\""), " | sort -V -k1,1 -k2,2 > ", paste0(base_dir, "/clusters2.bed")) 
+#cat(cmd11) #checking output is right
+#system(cmd11)  
+# c <- import.bed("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/test_data/clusters.bed"
+# c2 <- import.bed("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/test_data/clusters2.bed")
+# identical(c,c2) #TRUE
+# use single quotes ;)
+
+# via R:
+clust_tsv <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/cluster/cluster_union.tsv"
+clust_tsv_lax <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/cluster_lax/cluster_union_lax.tsv"
+
+cmd11a <- paste0("awk 'NR>1{print $1}' ", clust_tsv, " | tr ':' '\t' | tr '-' '\t' | sort -V -k1,1 -k2,2 > ", paste0(base_dir, "/clusters.bed")) 
+# system(cmd11a)
+
+cmd11b <- paste0("awk 'NR>1{print $1}' ", clust_tsv_lax , " | tr ':' '\t' | tr '-' '\t' | sort -V -k1,1 -k2,2 > ", paste0(base_dir, "/clusters_lax.bed")) 
+# system(cmd11b)
+
+# Pilfer line to merge overlapping cluster ranges
+# bedtools merge -i  $out_dir_prefix"bed/clusters.bed" > $out_dir_prefix"bed/merge_clusters.bed"
+
+# via R:
+clust_bed <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/clusters.bed"
+clust_bed_lax <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/clusters_lax.bed"
+
+cmd12a <- paste0("bedtools merge -i ", clust_bed, " > ", paste0(base_dir, "/merge_clusters.bed")) 
+# system(cmd12a)
+
+cmd12b <- paste0("bedtools merge -i ", clust_bed_lax , " > ", paste0(base_dir, "/merge_clusters_lax.bed")) 
+# system(cmd12b)
+
+# Pilfer line to add appropriate scores to reduced ranges
+# python $tools_dir"merge_cluster.py" $out_dir_prefix"bed/merge_clusters.bed" $out_dir_prefix"cluster_union.tsv" $num_sample > $out_dir_prefix"cluster_union_merged.tsv"
+# note that sample colnames are lacking, but the order is the same as that in "prefix_list" and "cluster_union.tsv" file
+
+# via R:
+clust_bed_merge <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/merge_clusters.bed"
+clust_bed_merge_lax <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/merge_clusters_lax.bed"
+
+cmd13a <- paste0("python2.7 /Users/kathryn/PILFER-master/tools/merge_cluster.py ", clust_bed_merge, " ", clust_tsv, " 6 > ", paste0(base_dir, "/cluster_union_merged.tsv")) 
+# system(cmd13a)
+
+cmd13b <- paste0("python2.7 /Users/kathryn/PILFER-master/tools/merge_cluster.py ", clust_bed_merge_lax, " ", clust_tsv_lax, " 6 > ", paste0(base_dir, "/cluster_union_merged_lax.tsv")) 
+# system(cmd13b)
+
+# cu <- read.delim("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/test_data/cluster/cluster_union.tsv", header = T,  sep = "\t")
+# cu_merge<- read.delim("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/test_data/cluster_union_merged.tsv",header = F,  sep = "\t")
+# merge_cluster.py takes the reduced ranges from the bedtools merge "merge_clusters.bed" file and counts for each sample from any range in the union.py "cluster_union.tsv" file and adds the counts for each sample into the reduced ranges
+# 
+# e.g.:
+# cu[grepl("NC_000001.10:7990376", cu$X__),] #was reduced to:
+# cm[cm@ranges=="7990377-8022901",] #just added 1nt to start cause of 0- vs 1-based numbering in import.bed function, is 7990376-8022901 in the bedfile, and in the merge_cluster.py "cluster_union_merged.tsv" file, this becomes:
+# cu_merge[grepl("NC_000001.10:7990376", cu_merge$V1),] 
+
+# Next get piRNA overlap with TEs
+# need to make TE bed - theirs is stranded and has names
+# hsa_TE <- read.delim("/Users/kathryn/PILFER-master/tools/retro-transposons.bed", header = F, sep = "\t")
+# repeat_gff <- import("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/Obir.assembly.v5.4.fasta.out.gff")  #RepeatMasker output provided by Kip
+# # match gff type to names
+# 
+# obir_reps <- read.table("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/Obir.assembly.v5.4.fasta.out", header = T, strip.white = T, skip = 1, blank.lines.skip = T,  fill = T, sep = "", row.names = NULL)
+# obir_IDmap <- unique(obir_reps[,c("X","repeat.")]) #7061 unique IDs, good
+# # fix gff names
+# repeat_gff$targ_mod <- gsub('"', "", repeat_gff$Target)
+# repeat_gff$targ_mod <- gsub('Motif:', "", repeat_gff$targ_mod )
+# repeat_gff$targ_mod <- str_split_fixed(repeat_gff$targ_mod," ", 2)[,1]
+# t <- unique(obir_IDmap$X) %in% unique(repeat_gff$targ_mod) #good, all TRUE
+# 
+# TE_bed <- data.frame(seqnames = repeat_gff@seqnames, start = repeat_gff@ranges@start-1, end = (repeat_gff@ranges@start-1)+repeat_gff@ranges@width, targ = repeat_gff$targ_mod, score = repeat_gff$phase, strand=repeat_gff@strand) #fix 0-based numbering for import by rtracklayer, would have to add 1 if read.delim
+# 
+# TE_bed <- merge(TE_bed, obir_IDmap, by.x ="targ", by.y="X", all.x=T)
+# length(which(is.na(TE_bed$repeat.))) #0, good
+# # 
+# # # now need to fix seqnames
+# NCBI_mt <- readDNAStringSet("/Volumes/Kathryn/BRC_Kip/Obiroi_Refseq_plus_Mt/GCF_003672135.1_Obir_v5.4_genomic_Mt_add.fna", format = "fasta")
+# chr_names <- str_split_fixed(names(NCBI_mt), " ",2)[,1]
+# chrs <- ifelse(grepl("chromosome", names(NCBI_mt)), str_split_fixed(names(NCBI_mt), ", Obir_v5.4",2)[,1], str_split_fixed(names(NCBI_mt), "Obir_v5.4 ",2)[,2])
+# chrs <- chrs[1:139]
+# chrs <- gsub(", whole genome shotgun sequence", "", chrs)
+# chrs <- ifelse(grepl("chromosome", chrs), str_split_fixed(chrs, "C1 ",2)[,2], chrs)
+# chrs <- gsub("chromosome ", "Chr", chrs) #missing 2, verified they are really not in TEbed
+# chrs <- c(chrs, "Mitochondrion")
+# names(chr_names) <- chrs
+# TE_bed$seqnames<- str_replace_all(TE_bed$seqnames, chr_names)
+# TE_bed$targ <- NULL
+# TE_bed <- TE_bed[,c(1:3, 6, 4:5)]
+# # write.table(TE_bed, "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/Obir_TE.bed", col.names = F, quote = F, sep = "\t", row.names = F) #left in the rRNA, unknown  for now
+
+# Pilfer line to intersect TE elements and piRNAs
+# for prefix in "${list[@]}"
+# do
+# 	echo $prefix
+# 	bedtools intersect -a <path/>retro-transposons.bed -b $out_dir_prefix"bed/ncrna_subtract_putative/"$prefix.bed -s -F 1 -wa -wb | awk 'BEGIN{OFS="\t"}{print $7,$8,$9,$10,$11,$12,$4}' > $out_dir_prefix"bed/TE_origin/"$prefix
+# done
+
+# via R:
+TE_file <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/Obir_TE.bed"
+# dir.create("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/TE_origin/")
+TE_dir <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/TE_origin"
+cmd14 <- vector(mode = "list", length = length(bed_nonc))
+# for (i in 1:length(bed_nonc)){
+# cmd14[i] <- paste0("bedtools intersect -a ", TE_file, " -b ", bed_nonc[i], " -s -F 1 -wa -wb | awk 'BEGIN{OFS=", paste0("\"\\t\""), "}{print $7,$8,$9,$10,$11,$12,$4}' > ", paste0(TE_dir, "/", gsub(".bed","", basename(bed_nonc[i])))) 
+# system(cmd14[[i]]) }
+# HERE the double quotes do matter
+
+# Next lines in Pilfer are making fasta files of piRNAs, didn't do yet
+# cut -f4 "$out_dir_prefix"bed/ncrna_subtract_putative/* | sort | uniq | awk 'BEGIN{FS="::"}$2=="PU"{print $1}' | python  $tools_dir"merge.py" | rev | sort | rev | python  $tools_dir"merge.py" | awk '{print ">seq"NR"|PU\n"$1}' > $out_dir_prefix"putative.fa"
+# cut -f4 "$out_dir_prefix"bed/ncrna_subtract_putative/* | sort | uniq | awk 'BEGIN{FS="::"}$2=="PI"{print $1}' | python  $tools_dir"merge.py" | rev | sort | rev | python  $tools_dir"merge.py" | awk '{print ">seq"NR"|PI\n"$1}' > $out_dir_prefix"known.fa"
+# 
+# cat $out_dir_prefix"putative.fa" $out_dir_prefix"known.fa" > all_pirna.fa
+```
+
+#### first look at piRNAs homologous to dme piRNAs and putative ant piRNAs
+#### any read mapping to known piRNAs is retained with one mismatch and difference in sequence length of 2 - I used Drosophila known piRNAs to try and get homologous ant piRNAs (for known piRNAs within the same species, Pilfer pipeline requires no mismatch, but difference in sequence length of 2 is allowed)
+#### two different filtering cutoffs for putative piRNAs based on initial characterization of piRNA expression distributions 
+#### Pilfer filering: read count of 100 and length 24-33 nt
+#### relaxed putative (20 read count and 24-33nt)
+
+#### expression & length distribution for all piRNAs called
+
+```{r known and putative, echo=FALSE, warning=FALSE, message=FALSE}
+bed_nonc <- dir(base_dir, pattern="subtract_ncRNA.bed",full.names = TRUE)
+bed_nonc <-  grep("all", bed_nonc, value = TRUE, invert = TRUE)
+bed_nonc <-  grep("nk_", bed_nonc, value = TRUE, invert = TRUE)
+piRNA_beds <- lapply(bed_nonc, read.delim, header =F, sep="\t")
+names(piRNA_beds)  <- gsub("_subtract_ncRNA.bed", "", basename(bed_nonc))
+names(piRNA_beds)<- gsub("_ann_sam_out", "", names(piRNA_beds))
+piRNA_stat <- rbindlist(piRNA_beds, idcol=T)
+piRNA_stat$seq <- str_split_fixed(piRNA_stat$V4, "::", 2)[,1]
+piRNA_stat$group <- str_split_fixed(piRNA_stat$V4, "::", 2)[,2]
+replace <- c("PI" = "homologous","PU"= "putative")
+piRNA_stat$group <- str_replace_all(piRNA_stat$group, replace)
+piRNA_stat$length<- nchar(piRNA_stat$seq)
+piRNA_stat$filtering <- ifelse(grepl("lax", piRNA_stat$.id), "relaxed", "Pilfer")
+piRNA_stat$sample <- str_split_fixed(piRNA_stat$.id, "_", 3)[,2]
+piRNA_stat$sample <- factor(piRNA_stat$sample, levels =unique(piRNA_stat$sample)[c(3,6,1, 4, 5,2)])
+piRNA_stat <- piRNA_stat[piRNA_stat$V1!="CM010870.1",]
+piRNA_stat_un <- piRNA_stat %>% group_by(sample, group, filtering, seq) %>% summarise(V5 = mean(V5),.id = first(.id), length=first(length))
+piRNA_stat_un  <- piRNA_stat_un  %>% group_by(sample, filtering) %>% mutate(counts_norm = V5/sum(V5)*1000000) #here normalize within sample/filtering without group - see contribution of each group as well as dist
+#now fix counts norm so not double counting:
+piRNA_stat_un$no_loc_ID <- paste0(piRNA_stat_un$sample, "_", piRNA_stat_un$filtering, ":", piRNA_stat_un$seq)
+piRNA_stat$no_loc_ID <- paste0(piRNA_stat$sample, "_", piRNA_stat$filtering, ":", piRNA_stat$seq)
+piRNA_stat <- merge(piRNA_stat, unique(piRNA_stat_un[,c("no_loc_ID", "counts_norm")]), by  =  "no_loc_ID", all.x=T)
+```
+
+```{r expression,  fig.align='center', fig.height = 4, fig.width = 12, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(piRNA_stat_un [grepl("lax", piRNA_stat_un $.id),], aes(x=log2(V5), colour=group)) + geom_density() + theme_bw() + geom_vline(xintercept = 4.32, linetype="dotted") + labs(title = "piRNA expression by sample and group",
+       subtitle = "(relaxed cutoff of 20, vertical line indicates cutoff)", x = "log2 (piRNA expression)") + facet_grid(.~ sample)  
+
+ggplot(piRNA_stat_un[!grepl("lax", piRNA_stat_un$.id),], aes(x=log2(V5), colour=group)) + geom_density() + theme_bw() + geom_vline(xintercept = 6.64, linetype="dotted") + labs(title = "piRNA expression by sample and group",
+       subtitle = "(Pilfer cutoff of 100, vertical line indicates cutoff)", x = "log2 (piRNA expression)") + facet_grid(.~ sample)  
+
+#check same with normalized read depth
+
+ggplot(piRNA_stat_un[grepl("lax", piRNA_stat_un$.id),], aes(x=log2(counts_norm), colour=group)) + geom_density() + theme_bw() + labs(title = "Normalized piRNA expression by sample and group",subtitle = "(relaxed cutoff of 20)", x = "log2 (piRNA expression) in cpm") + facet_grid(.~ sample)  
+
+ggplot(piRNA_stat_un[!grepl("lax", piRNA_stat_un$.id),], aes(x=log2(counts_norm), colour=group)) + geom_density() + theme_bw() + labs(title = "Normalized piRNA expression by sample and group",subtitle = "(Pilfer cutoff of 100)", x = "log2 (piRNA expression) in cpm") + facet_grid(.~ sample) 
+```
+
+```{r hsa expression,  fig.align='center', fig.height = 3, fig.width = 10, echo=FALSE, warning=FALSE, message=FALSE}
+#compare to human
+hsa_stat <- read.delim( "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/test_data/hsa_piRNA_stat.txt", header = T,  sep ="\t")
+
+hsa_stat_un <- hsa_stat %>% group_by(.id, group, seq) %>% summarise(V5 = mean(V5),.id = first(.id), length=first(length))
+hsa_stat_un  <- hsa_stat_un  %>% group_by(.id) %>% mutate(counts_norm = V5/sum(V5)*1000000)
+
+ggplot(hsa_stat_un, aes(log2(V5), colour=group)) + geom_density() + theme_bw() + geom_vline(xintercept = 4.32, linetype="dotted") + geom_vline(xintercept = 6.64, linetype="dotted") + labs(title = "Human piRNA expression by sample and group", subtitle = "(Pilfer cutoff of 100, vertical lines indicate cutoffs of 20 or 100)", y = "frequency", x = "log2(piRNA expression)") + facet_grid(.~ .id)
+
+#human
+ggplot(hsa_stat_un, aes(log2(counts_norm), colour=group)) + geom_density() + theme_bw() + labs(title = "Normalized human piRNA expression by sample and group", subtitle = "(Pilfer cutoff of 100)", x = "log2(piRNA expression) in cpm") + facet_grid(.~ .id)
+```
+
+#### check lower expression values on a linear scale to see homologous expression profile
+
+```{r expression known,  fig.align='center', fig.height = 4, fig.width =8, echo=FALSE, warning=FALSE, message=FALSE}
+##check closer on linear scale for homologous
+ggplot(piRNA_stat_un[grepl("lax", piRNA_stat_un$.id)& grepl("homologous", piRNA_stat_un$group),], aes(x=V5, fill=sample)) + geom_bar(aes(y = (..count..)/sum(..count..)), position = position_dodge2(width = 0.9, preserve = "single"),colour="black") + theme_bw() + xlim(0, 10) + labs(title = "Homologous piRNA expression by sample", y = "frequency", x = "piRNA expression")
+
+ggplot(hsa_stat_un[grepl("known", hsa_stat_un$group),], aes(x=V5, fill=.id)) + geom_bar(aes(y = (..count..)/sum(..count..)), position = position_dodge2(width = 0.9, preserve = "single"),  colour="black") + theme_bw() + xlim(0, 10) + labs(title = "Known piRNA expression by sample", y = "frequency", x = "piRNA expression")
+```
+
+#### for ant, no clear separation for samples I would expect to have more piRNAs (i.e. Eggs), unlike what I observe on human test data
+
+#### length distribution of homologous or putative piRNAs
+
+```{r putative known length,  fig.align='center', fig.height = 4, fig.width = 14, echo=FALSE, warning=FALSE, message=FALSE}
+## now lens
+piRNA_lens <- piRNA_stat_un  %>% group_by(sample, filtering, group, length) %>% summarise(counts = n(), counts_norm = sum(counts_norm), .id = first(.id)) %>% group_by(sample,filtering, group) %>%  mutate(percent = counts/sum(counts), percent_norm = counts_norm/sum(counts_norm))
+#keep within group normalization to see better length distribution
+
+#piRNA_lens2 <- piRNA_stat_un  %>% group_by(sample, filtering, group, length) %>% summarise(counts = n(), counts_norm = sum(counts_norm), .id = first(.id)) %>% group_by(sample,filtering) %>%  mutate(percent = counts/sum(counts), percent_norm = counts_norm/sum(counts_norm))
+
+ggplot(piRNA_lens[grepl("lax", piRNA_lens$.id),], aes(x=length, y=percent, fill=group)) + geom_bar(stat = "identity", position = position_dodge2(width = 0.9, preserve = "single"), colour="black") + theme_bw()  + labs(title ="Length distribution of piRNAs", subtitle = "relaxed cutoff of 20, unique piRNAs") + facet_grid(.~ sample)#
+
+ggplot(piRNA_lens[!grepl("lax", piRNA_lens$.id),], aes(x=length, y=percent, fill=group)) + geom_bar(stat = "identity", position = position_dodge2(width = 0.9, preserve = "single"), colour="black") + theme_bw()  + labs(title ="Length distribution of piRNAs", subtitle = "Pilfer cutoff of 100, unique piRNAs") + facet_grid(.~ sample)#
+
+# ggplot(piRNA_lens[grepl("lax", piRNA_lens$.id),], aes(x=length, y=percent_norm, fill=group)) + geom_bar(stat = "identity", position = position_dodge2(width = 0.9, preserve = "single"), colour="black")  + theme_bw()  + labs(title ="Length distribution of piRNAs", subtitle = "relaxed cutoff of 20, unique piRNAs normalized to read depth") + facet_grid(.~ sample)#
+# 
+# ggplot(piRNA_lens[!grepl("lax", piRNA_lens$.id),], aes(x=length, y=percent_norm, fill=group)) + geom_bar(stat = "identity", position = position_dodge2(width = 0.9, preserve = "single"), colour="black") +  theme_bw()  + labs(title ="Length distribution of piRNAs", subtitle = "Pilfer cutoff of 100, unique piRNAs normalized to read depth") + facet_grid(.~ sample)#
+```
+
+#### length distribution of homologous or putative piRNAs
+
+```{r putative known hsa length,  fig.align='center', fig.height = 4, fig.width = 12, echo=FALSE, warning=FALSE, message=FALSE}
+## compare to human
+hsa_lens <- hsa_stat_un %>% group_by(.id, group, length) %>% summarise(counts = n(), counts_norm = sum(counts_norm)) %>% group_by(.id, group) %>% mutate(percent = counts/sum(counts), percent_norm = counts_norm/sum(counts_norm))
+
+#hsa_lens2 <- hsa_stat %>% group_by(.id, group, length) %>% summarise(counts = n(), counts_norm = sum(counts_norm)) %>% group_by(.id) %>% mutate(percent = counts/sum(counts), percent_norm = counts_norm/sum(counts_norm))
+
+ggplot(hsa_lens, aes(x=length, y=percent, fill=group)) + geom_bar(stat = "identity", position = position_dodge2(width = 0.9, preserve = "single"), color="black")  + theme_bw()  + labs(title ="Length distribution of human piRNAs", subtitle = "Pilfer cutoff of 100, unique piRNAs") + facet_grid(.~ .id)#
+
+# ggplot(hsa_lens, aes(x=length, y=percent_norm, fill=group)) + geom_bar(stat = "identity", position = position_dodge2(width = 0.9, preserve = "single"), colour="black")  + theme_bw()  + labs(title ="Length distribution of human piRNAs", subtitle = "Pilfer cutoff of 100, unique piRNAs normalized to read depth") + facet_grid(.~ .id)#
+```
+
+#### unlike in human test data with known piRNAss, in ant there are not homologous piRNAs at the right length distributions
+
+#### check to see the length distribution of known human and fly piRNAs
+
+```{r known length,  fig.align='center', fig.height =3, fig.width = 6, echo=FALSE, warning=FALSE, message=FALSE}
+#check dist of human and dme known piRNA lens
+hsa_pi_u <- readDNAStringSet("/Users/kathryn/PILFER-master/tools/pirna/pirna_uniq.fa")
+known_lens <-rbind(as.data.frame(hsa_pi_u),as.data.frame(dme_pi_u))
+known_lens$species <- str_split_fixed(row.names(known_lens), "-", 2)[,1]
+known_lens$length <- nchar(known_lens$x)
+known_lens <- known_lens %>% group_by(species, length) %>% summarise(counts = n()) %>% mutate(percent = counts/sum(counts))
+
+ggplot(known_lens, aes(x=length, y=percent, fill=species)) + geom_bar(stat = "identity", position = position_dodge2(width = 0.9, preserve = "single"), colour="black") + theme_bw()  + labs(title ="Length distribution of known piRNAs")
+
+```
+
+#### based on this, don't think homologous is working - ncRNA subtraction is removing "homologous" piRNAs at the right size distributions. Rerun, excluding dme piRNA step, so that these don't influence Pilfer cluster calling
+
+## Everything below is done without attempting to call homologous piRNAs - just putative piRNAs
+
+#### length distribution 
+
+```{r length,  fig.align='center', fig.height = 4, fig.width = 14, echo=FALSE, warning=FALSE, message=FALSE}
+bed_nonc <- bed_nonc <- dir(base_dir, pattern="nk_subtract_ncRNA.bed|nk_lax_subtract_ncRNA.bed",full.names = TRUE) 
+piRNA_beds <- lapply(bed_nonc, read.delim, header =F, sep="\t")
+names(piRNA_beds)  <- gsub("_subtract_ncRNA.bed", "", basename(bed_nonc))
+names(piRNA_beds)<- gsub("_ann_sam_out_nk", "", names(piRNA_beds))
+piRNA_stat <- rbindlist(piRNA_beds, idcol=T)
+piRNA_stat$seq <- str_split_fixed(piRNA_stat$V4, "::", 2)[,1]
+piRNA_stat$length<- nchar(piRNA_stat$seq)
+piRNA_stat$group <- ifelse(grepl("lax", piRNA_stat$.id), "relaxed", "Pilfer")
+piRNA_stat$sample <- str_split_fixed(piRNA_stat$.id, "_", 3)[,2]
+piRNA_stat$sample <- factor(piRNA_stat$sample, levels =unique(piRNA_stat$sample)[c(3,6,1, 4, 5,2)])
+piRNA_stat <- piRNA_stat[piRNA_stat$V1!="CM010870.1",] #because cannot subtract ncRNAs from the mitochondria
+piRNA_stat_un <- piRNA_stat %>% group_by(sample, group, seq) %>% summarise(V5 = mean(V5),.id = first(.id), length=first(length))
+piRNA_stat_un  <- piRNA_stat_un  %>% group_by(sample, group) %>% mutate(counts_norm = V5/sum(V5)*1000000)
+
+#now fix counts norm so not double counting:
+piRNA_stat_un$no_loc_ID <- paste0(piRNA_stat_un$sample, "_", piRNA_stat_un$group, ":", piRNA_stat_un$seq)
+piRNA_stat$no_loc_ID <- paste0(piRNA_stat$sample, "_", piRNA_stat$group, ":", piRNA_stat$seq)
+piRNA_stat <- merge(piRNA_stat, unique(piRNA_stat_un[,c("no_loc_ID", "counts_norm")]), by  =  "no_loc_ID", all.x=T)
+
+piRNA_lens <- piRNA_stat_un %>% group_by(sample,group, length) %>% summarise(counts = n(), counts_norm = sum(counts_norm), .id = first(.id)) %>% group_by(sample,group) %>%  mutate(percent = counts/sum(counts), percent_norm = counts_norm/sum(counts_norm))
+
+ggplot(piRNA_lens, aes(x=length, y=percent, fill=group)) + geom_bar(stat = "identity", position = position_dodge2(width = 0.9, preserve = "single"), colour="black") + theme_bw()  + labs(title ="Length distribution of piRNAs", subtitle = "Pilfer cutoff = 100, relaxed cutoff = 20, unique piRNAs") + facet_grid(.~ sample)#
+
+ggplot(piRNA_lens, aes(x=length, y=percent_norm, fill=group)) + geom_bar(stat = "identity", position = position_dodge2(width = 0.9, preserve = "single"), colour="black") + theme_bw()  + labs(title ="Length distribution  of piRNAs", subtitle = "Pilfer cutoff = 100, relaxed cutoff = 20, unique piRNAs normalized to read depth") + facet_grid(.~ sample)
+```
+
+#### genomic annotation of putative piRNAs
+
+```{r genomic ann samples,  fig.align='center', fig.height = 6, fig.width = 12, echo=FALSE, warning=FALSE, message=FALSE}
+gtffile <- "/Volumes/Kathryn/BRC_Kip/GCF_003672135.1_Obir_v5.4_genomic.gtf"
+TxDb <- makeTxDbFromGFF(gtffile)
+
+#look at all by .id
+all_pis <- makeGRangesFromDataFrame(piRNA_stat,
+                                     keep.extra.columns=T,
+                                     ignore.strand=FALSE,
+                                     seqinfo=NULL,
+                                     seqnames.field="V1",
+                                     start.field="V2",
+                                     end.field="V3",
+                                     strand.field="V6",
+                                     starts.in.df.are.0based=FALSE)
+all_pis_anno <- annotatePeak(all_pis,
+                              TxDb=TxDb,
+                              sameStrand=FALSE,
+                              genomicAnnotationPriority = c("3UTR", "5UTR","Exon","Intron", "Downstream",  "Intergenic", "Promoter"),
+                              overlap = "all")
+
+ann_pi_df <- as.data.frame(all_pis_anno@anno)
+ann_pi_df$ann_detail<- str_split_fixed(ann_pi_df$annotation, "\\(", 2)[,2]
+ann_pi_df$annotation <- str_split_fixed(ann_pi_df$annotation, " \\(", 2)[,1]
+ann_pi_df$pi_ID <- paste0(ann_pi_df$sample,"_", ann_pi_df$group, ":", ann_pi_df$seqnames, ":", ann_pi_df$start, "-", ann_pi_df$end ,":", ann_pi_df$strand,":", ann_pi_df$seq) #good  these are all unique
+
+#ok, deal with sequences mapping to different location - check if have different annotations ever
+ann_check <- ann_pi_df %>% group_by(annotation, seq) %>% summarise(count=n()) #yes they do
+ann_check$duplicated <- duplicated(ann_check$seq)
+ann_pi_df_un <-  ann_pi_df %>% group_by(sample,group, annotation, seq) %>% summarize(length = first(length), V5=mean(V5), counts_norm = mean(counts_norm), ann_count=n())%>% group_by(sample,group, seq) %>% slice_max(ann_count) #so here will get count if within annotation have multiple entries by sample, group, seq, and if multiple annotations are assigned, will keep the one assigned more frequently; here mean counts comes from de-duplicated counts
+
+ann_check <- ann_pi_df_un %>% group_by(sample, group, seq) %>% summarize(n_unique = length(unique(seq))) #check if still dups within group, good all are one
+ann_pi_df_un %>% group_by(sample, group) %>% summarize(n_unique = length(unique(seq))) %>% {sum(.$n_unique)} #but, this gives  75865 and nrow is 85971
+ann_pi_df_un %>% group_by(sample, group) %>% summarize(n_unique = length(seq)) %>% {sum(.$n_unique)} #and this give row num
+ann_pi_df_un$duplicated <- duplicated(ann_pi_df_un[,c("sample", "group", "seq")])  #ok, cause of ties in ann count
+ann_pi_df_un <- ann_pi_df_un %>% group_by(sample, group, seq) %>%  slice_max(factor(annotation, c("3' UTR", "5' UTR","Exon", "Promoter","Downstream", "Intron",  "Distal Intergenic"))) #prioritize by annotation #good, now 75865
+
+ann_pi_df_un_stat <- ann_pi_df_un%>% group_by(sample,group, annotation) %>% summarise(ann_count =n(), ann_count_norm = sum(counts_norm), length=first(length)) %>% group_by(sample,group) %>% mutate(percent=ann_count/sum(ann_count), norm_percent = ann_count_norm/sum(ann_count_norm))
+
+xscale <- as.character(unique(ann_pi_df_un_stat$sample))
+ann_pi_df_un_stat$annotation <- factor(ann_pi_df_un_stat$annotation, levels =unique(ann_pi_df_un_stat$annotation)[c( 2,1, 4,5, 7, 3, 6)])
+
+ggplot(ann_pi_df_un_stat, aes(x=sample, y=percent, fill=annotation)) +
+  geom_col() +
+  coord_polar("y") + scale_x_discrete(limits=c(" ", xscale)) + theme_bw() + labs(title ="piRNA annotation", subtitle = "percentage unique piRNAs, comparing samples", y="")+ facet_grid(.~ group) 
+
+ggplot(ann_pi_df_un_stat, aes(x=sample, y=norm_percent, fill=annotation)) +
+  geom_col() +
+  coord_polar("y") + scale_x_discrete(limits=c(" ", xscale)) + theme_bw() + labs(title ="piRNA annotation", subtitle = "percentage unique piRNAs normalized to read depth, comparing samples", y="")+ facet_grid(.~ group)
+```
+
+```{r genomic ann filtering,  fig.align='center', fig.height = 3, fig.width = 14, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(ann_pi_df_un_stat, aes(x=group, y=percent, fill=annotation)) +
+  geom_col() +
+  coord_polar("y") + scale_x_discrete(limits=c(" ", "Pilfer","relaxed")) + theme_bw() + labs(title ="piRNA annotation", subtitle = "percentage unique piRNAs, comparing filtering", y="")+ facet_grid(.~ sample) 
+
+ggplot(ann_pi_df_un_stat, aes(x=group, y=norm_percent, fill=annotation)) +
+  geom_col() +
+  coord_polar("y") + scale_x_discrete(limits=c(" ", "Pilfer","relaxed")) + theme_bw()  + labs(title ="piRNA annotation", subtitle = "percentage unique piRNAs normalized to read depth, comparing filtering",y="") +  facet_grid(.~ sample) 
+```
+
+#### sequence logos to check for putative piRNAs ping-pong signature
+
+#### expect "A" in sense 10th position and "T" at antisense 1st position, and that there is usually a distance of 10nt (position 9 in 0-based numbering) between the 5' positions of antisense piRNAs relative to the 5' positions of overlapping sense piRNAs
+
+```{r seqlogo,  fig.align='center', fig.height = 8, fig.width = 8, echo=FALSE, message=FALSE, warning=FALSE}
+#here need to regroup including strand - some of the same piRNA seqs are coming from diff strands
+piRNA_stat_unl <- piRNA_stat %>% group_by(sample, group, seq, V6) %>% summarise(V5 = mean(V5),counts_norm =  mean(counts_norm), .id = first(.id), length=first(length)) #so  allow one seq entry from each strand by group
+piRNA_stat_unl$dups <- duplicated(piRNA_stat_unl[,c("sample", "group", "seq")])
+logo_list <-  piRNA_stat_unl %>% {split(.$seq, f=list(.$sample,.$group, .$V6))}
+trim <- lapply(logo_list, substr, start=1, stop=24)
+names(trim) <- gsub("\\.", " ", names(trim))
+names(trim) <- gsub("-", "antisense", names(trim))
+names(trim) <- gsub("\\+", "sense", names(trim))
+trim_pilfer <- trim[grepl("Pilfer", names(trim))] 
+trim_pilfer <- trim_pilfer[c(7, 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6)]
+names(trim_pilfer) <- gsub("Pilfer ", "", names(trim_pilfer))
+
+trim_relaxed <- trim[!grepl("Pilfer", names(trim))] 
+trim_relaxed <- trim_relaxed[c(7, 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6)]
+names(trim_relaxed) <- gsub("relaxed ", "", names(trim_relaxed))
+
+ggseqlogo(trim_pilfer, ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="piRNA seqlogos", subtitle = "unique piRNAs, Pilfer cutoff of 100")
+
+ggseqlogo(trim_relaxed , ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="piRNA seqlogos", subtitle = "unique piRNAs, relaxed cutoff of 20")
+
+## try expanding seqs by read counts
+# piRNA_stat_unl$counts_norm_int <- round(piRNA_stat_unl$counts_norm)
+# piRNA_lim <- piRNA_stat_unl[,c("counts_norm_int", "seq", "sample", "group", "V6")] 
+# piRNA_stat_expand <- vector(mode = "list",length = nrow(piRNA_lim))
+# for (i in 1:nrow(piRNA_lim)){
+#   piRNA_stat_expand[[i]] <- piRNA_lim[rep(i,piRNA_lim$counts_norm_int[i]),]
+# }
+# 
+# piRNA_stat_expand <- rbindlist(piRNA_stat_expand)
+# #sum(TE_clust_logo_df$V5) good,1413317
+# 
+# logo_list_expand <-  piRNA_stat_expand %>% {split(.$seq, f=list(.$sample,.$group, .$V6))}
+# trim_expand <- lapply(logo_list_expand, substr, start=1, stop=24)
+# names(trim_expand) <- gsub("\\.", " ", names(trim_expand))
+# names(trim_expand) <- gsub("-", "antisense", names(trim_expand))
+# names(trim_expand) <- gsub("\\+", "sense", names(trim_expand))
+# trim_pilfer_expand <- trim_expand[grepl("Pilfer", names(trim_expand))] 
+# trim_pilfer_expand  <- trim_pilfer_expand [c(7, 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6)]
+# names(trim_pilfer_expand ) <- gsub("Pilfer ", "", names(trim_pilfer_expand))
+# 
+# trim_relaxed_expand <- trim_expand[!grepl("Pilfer", names(trim_expand))] 
+# trim_relaxed_expand <- trim_relaxed_expand[c(7, 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6)]
+# names(trim_relaxed_expand) <- gsub("relaxed ", "", names(trim_relaxed_expand))
+# 
+# ggseqlogo(trim_pilfer_expand, ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="piRNA seqlogos", subtitle = "unique piRNAs normalized to read depth, Pilfer cutoff of 100") #lose ping pong in eggs/prepupae
+# 
+# ggseqlogo(trim_relaxed_expand , ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="piRNA seqlogos", subtitle = "unique piRNAs normalized to read depth, relaxed cutoff of 20") #keep ping pong in eggs/prepupae
+```
+
+```{r pingpong distance,  fig.align='center', fig.height = 4, fig.width = 14, echo=FALSE, message=FALSE, warning=FALSE}
+#ping-pong sig for overlapping
+all_pis_pos <- all_pis[all_pis@strand=="+"]
+all_pis_neg <- all_pis[all_pis@strand=="-"]
+merge_opp_all <- mergeByOverlaps(all_pis_neg, all_pis_pos, ignore.strand = TRUE)
+merge_opp_all_df <- as.data.frame(merge_opp_all)
+merge_opp_all_df <- merge_opp_all_df[merge_opp_all_df$all_pis_neg..id==merge_opp_all_df$all_pis_pos..id,]#4990/75919 ~6.6% #checked and only 5 out of 577 with matching ids had different TE ann
+merge_opp_all_df$dist <- merge_opp_all_df$all_pis_neg.end - merge_opp_all_df$all_pis_pos.start
+# merge_opp_all_df$neg_pi_ID <- paste0(merge_opp_all_df$all_pis_neg.seqnames, ":", merge_opp_all_df$all_pis_neg.start, "_", merge_opp_all_df$all_pis_neg.end, ":", merge_opp_all_df$all_pis_neg.seq)
+# merge_opp_all_df$pos_pi_ID <- paste0(merge_opp_all_df$all_pis_pos.seqnames, ":", merge_opp_all_df$all_pis_pos.start, "_", merge_opp_all_df$all_pis_pos.end, ":", merge_opp_all_df$all_pis_pos.seq)
+# merge_opp_all_df$overlap_ID <- paste0(merge_opp_all_df$pos_pi_ID, merge_opp_all_df$neg_pi_ID)
+# merge_opp_all_df$duplicated <- duplicated(merge_opp_all_df[,c("sample", "group", "overlap_ID")])
+# length(which(merge_opp_all_df$duplicated==TRUE)) #0, good
+
+#think I should do this on seq instead
+merge_opp_all_df$overlap_ID <- paste0(merge_opp_all_df$all_pis_neg.seq, ":", merge_opp_all_df$all_pis_pos.seq)
+merge_opp_all_df$duplicated <- duplicated(merge_opp_all_df[,c("sample", "group", "overlap_ID")])
+
+merge_opp_all_un <- merge_opp_all_df[merge_opp_all_df$duplicated==FALSE,]
+
+#merge_opp_df$dist <- merge_opp_df$TE_clust_pis_pos.start - merge_opp_df$TE_clust_pis_neg.end 
+merge_opp_all_un <- merge_opp_all_un %>% group_by(sample, group) %>% mutate(obs=n()) %>%  ungroup()%>% mutate(sample_obs = paste0(group, ": n = ",obs))
+
+merge_opp_all_stat <- merge_opp_all_un %>% group_by(sample, group, dist) %>% summarise(count=n(),obs=first(obs),  sample_obs  =  first(sample_obs), .id=first(.id), norm_count = sum(all_pis_neg.counts_norm)) %>%  group_by(sample, group) %>% mutate(frequency= count/sum(count), norm_frequency= norm_count/sum(norm_count))
+
+my_labs <- data.frame(lab = merge_opp_all_stat  %>% {unique(.[,c("sample", "group", "sample_obs")])} %>% {(.$sample_obs)}, dist = rep(20, 12), frequency = rep(c(1,0.95),6), sample= merge_opp_all_stat  %>% {unique(.[,c("sample", "group", "sample_obs")])} %>% {(.$sample)}, group = merge_opp_all_stat  %>% {unique(.[,c("sample", "group", "sample_obs")])} %>% {(.$group)} )
+my_labs$norm_frequency <- my_labs$frequency
+
+ggplot(merge_opp_all_stat, aes(x=dist, y=frequency, colour=group)) + geom_line() +xlim(0,40) +theme_bw() + facet_grid(.~sample) +geom_text(data = my_labs,label=  my_labs$lab , size = 3, show.legend = F) + labs(title ="Distance between overlapping piRNA 5' positions", subtitle = "5' position of unique antisense piRNAs relative to unique 5' positions of unique sense piRNAs",x="distance (5' position of sense piRNA)", y="frequency (5' position of antisense piRNA)")
+
+ggplot(merge_opp_all_stat, aes(x=dist, y=norm_frequency, colour=group)) + geom_line() +xlim(0,40) +theme_bw() + facet_grid(.~sample) +geom_text(data = my_labs,label=  my_labs$lab , size = 3, show.legend = F) + labs(title ="Distance between overlapping piRNA 5' positions", subtitle = "5' position of unique antisense piRNAs relative to unique 5' positions of unique sense piRNAs, normalized to antisense read depth",x="distance (5' position of sense piRNA)", y="frequency (5' position of antisense piRNA)")
+```
+
+```{r pingpong seqlogo,  fig.align='center', fig.height = 8, fig.width = 8, echo=FALSE, message=FALSE, warning=FALSE}
+#seq logos for overlapping
+pp_pos <- merge_opp_all_un %>% {split(.$all_pis_pos.seq, f=list(.$sample,.$group))}
+names(pp_pos) <- paste0(names(pp_pos), " sense")
+pp_pos_un <- lapply(pp_pos, unique)  #need to remove dup seqs since I allowed duplicated as long as they overlapped a  =different ping pong partner
+pp_neg <- merge_opp_all_un %>% {split(.$all_pis_neg.seq, f=list(.$sample,.$group))}
+names(pp_neg) <- paste0(names(pp_neg), " antisense")
+pp_neg_un <- lapply(pp_neg, unique)
+pp_logo_list <- c(pp_pos_un, pp_neg_un)
+pp_trim <- lapply(pp_logo_list, substr, start=1, stop=24)
+names(pp_trim) <- gsub("\\.", " ", names(pp_trim))
+
+pp_trim_pilfer <- pp_trim[grepl("Pilfer", names(pp_trim))] 
+pp_trim_pilfer <- pp_trim_pilfer[c(1, 7, 2, 8,3, 9, 4, 10, 5, 11, 6, 12)]
+names(pp_trim_pilfer) <- gsub("Pilfer ", "", names(pp_trim_pilfer))
+
+pp_trim_relaxed <- pp_trim[!grepl("Pilfer", names(pp_trim))] 
+pp_trim_relaxed <- pp_trim_relaxed[c(1, 7, 2, 8,3, 9, 4, 10, 5, 11, 6, 12)]
+names(pp_trim_relaxed) <- gsub("relaxed ", "", names(pp_trim_relaxed))
+
+ggseqlogo(pp_trim_pilfer, ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="Overlapping piRNA seqlogos", subtitle = "sequence composition of unique overlapping piRNAs by sample & strand, Pilfer cutoff of 100\n (ping-pong signature)")
+
+ggseqlogo(trim_relaxed , ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="Overlapping piRNA seqlogos", subtitle = "sequence composition of unique overlapping piRNAs by sample & strand, relaxed cutoff of 20\n (ping-pong signature)")
+
+## try expanding seqs by read counts
+merge_opp_all_un$counts_norm_int_neg <- round(merge_opp_all_un$all_pis_neg.counts_norm)
+merge_opp_all_un$counts_norm_int_pos <- round(merge_opp_all_un$all_pis_pos.counts_norm)
+# 
+piRNA_lim_neg <- unique(merge_opp_all_un[,c("counts_norm_int_neg", "all_pis_neg.seq", "sample", "group", "all_pis_neg.V5", "all_pis_neg.counts_norm",  "all_pis_neg.length")])
+# piRNA_stat_expand_neg <- vector(mode = "list",length = nrow(piRNA_lim_neg))
+# for (i in 1:nrow(piRNA_lim_neg)){
+#   piRNA_stat_expand_neg[[i]] <- piRNA_lim_neg[rep(i,piRNA_lim_neg$counts_norm_int_neg[i]),]
+# }
+# 
+# piRNA_stat_expand_neg<- rbindlist(piRNA_stat_expand_neg)
+# #sum(TE_clust_logo_df$V5) good,1413317
+# 
+piRNA_lim_pos <- unique(merge_opp_all_un[,c("counts_norm_int_pos", "all_pis_pos.seq", "sample", "group", "all_pis_pos.V5", "all_pis_pos.counts_norm", "all_pis_pos.length")])
+# piRNA_stat_expand_pos <- vector(mode = "list",length = nrow(piRNA_lim_pos))
+# for (i in 1:nrow(piRNA_lim_pos)){
+#   piRNA_stat_expand_pos[[i]] <- piRNA_lim_pos[rep(i,piRNA_lim_pos$counts_norm_int_pos[i]),]
+# }
+# 
+# piRNA_stat_expand_pos <- rbindlist(piRNA_stat_expand_pos)
+# 
+# pp_pos_expand <- piRNA_stat_expand_pos  %>% {split(.$all_pis_pos.seq, f=list(.$sample,.$group))}
+# names(pp_pos_expand ) <- paste0(names(pp_pos_expand ), " sense")
+# pp_neg_expand <- piRNA_stat_expand_neg %>% {split(.$all_pis_neg.seq, f=list(.$sample,.$group))}
+# names(pp_neg_expand) <- paste0(names(pp_neg_expand), " antisense")
+# pp_logo_list_expand <- c(pp_pos_expand , pp_neg_expand)
+# pp_trim_expand <- lapply(pp_logo_list_expand, substr, start=1, stop=24)
+# names(pp_trim_expand) <- gsub("\\.", " ", names(pp_trim_expand))
+# 
+# pp_trim_pilfer_expand <- pp_trim[grepl("Pilfer", names(pp_trim_expand))] 
+# pp_trim_pilfer_expand <- pp_trim_pilfer_expand[c(1, 7, 2, 8,3, 9, 4, 10, 5, 11, 6, 12)]
+# names(pp_trim_pilfer_expand) <- gsub("Pilfer ", "", names(pp_trim_pilfer_expand))
+# 
+# pp_trim_relaxed_expand <- pp_trim_expand[!grepl("Pilfer", names(pp_trim_expand))] 
+# pp_trim_relaxed_expand <- pp_trim_relaxed_expand[c(1, 7, 2, 8,3, 9, 4, 10, 5, 11, 6, 12)]
+# names(pp_trim_relaxed_expand) <- gsub("relaxed ", "", names(pp_trim_relaxed_expand))
+# 
+# ggseqlogo(pp_trim_pilfer_expand, ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="Overlapping piRNA seqlogos", subtitle = "sequence composition of unique overlapping piRNAs by sample & strand (normalized to read depth),\nPilfer cutoff of 100") 
+# 
+# ggseqlogo(pp_trim_relaxed_expand , ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="Overlapping piRNA seqlogos", subtitle = "sequence composition of unique overlapping piRNAs by sample & strand (normalized to read depth),\nrelaxed cutoff of 20 (ping-pong signature)") #keep ping pong in eggs/prepupae, pull out more
+```
+
+#### heatmaps & eulerr diagrams of putative piRNAs 
+
+```{r heatmap, fig.align='center', fig.height = 10.5, fig.width = 10, echo=FALSE, warning=FALSE, message=FALSE}
+#all putative 
+all_counts_pilfer <- piRNA_stat_un %>% dplyr::filter(group=="Pilfer") %>% reshape2::dcast(., seq ~ sample, value.var = "V5")
+all_counts_pilfer[is.na(all_counts_pilfer)] <- 0
+rownames(all_counts_pilfer) <- all_counts_pilfer[,1]
+all_counts_pilfer <- all_counts_pilfer[,-1]
+all_counts_pilfer <- all_counts_pilfer+1
+all_counts_pilfer <- edgeR::cpm(all_counts_pilfer)
+
+all_counts_rel <- piRNA_stat_un %>% dplyr::filter(group=="relaxed") %>% reshape2::dcast(., seq ~ sample, value.var = "V5")
+all_counts_rel[is.na(all_counts_rel)] <- 0
+rownames(all_counts_rel) <- all_counts_rel[,1]
+all_counts_rel <- all_counts_rel[,-1]
+all_counts_rel <- all_counts_rel+1
+all_counts_rel <- edgeR::cpm(all_counts_rel)
+
+# pheatmap:::pheatmap(t(log2(all_counts_pilfer)),
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 8, cellheight = 8, cellwidth = 4, main = "", show_colnames = F)
+
+topVar <-  head(order(rowVars(all_counts_pilfer), decreasing=TRUE),100)
+pheatmap:::pheatmap(log2(all_counts_pilfer[topVar,]) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize =8, cellheight = 6, cellwidth = 8, show_rownames = F, main = "100 most variable piRNAs (mean log2 (expression) in cpm), Pilfer cutoff")
+
+topVar2 <-  head(order(rowVars(all_counts_rel), decreasing=TRUE), 100)
+pheatmap:::pheatmap(log2(all_counts_rel[topVar2,]) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize =8, cellheight = 6, cellwidth = 8, show_rownames = F, main = "100 most variable piRNAs (mean log2 (expression) in cpm), relaxed cutoff")
+```
+
+```{r eulerr, fig.align='center', fig.height = 7, fig.width = 8, echo=FALSE, warning=FALSE, message=FALSE}
+eul_all <- piRNA_stat_un %>% {split(.$seq, f=list(.$sample,.$group))}
+eul_all_pilfer <- eul_all[grepl("Pilfer", names(eul_all))] 
+names(eul_all_pilfer) <- gsub("Pilfer", "", names(eul_all_pilfer))
+names(eul_all_pilfer) <- gsub("\\.", "", names(eul_all_pilfer))
+
+eul_all_relaxed <- eul_all[!grepl("Pilfer", names(eul_all))] 
+names(eul_all_relaxed) <- gsub("relaxed", "", names(eul_all_relaxed))
+names(eul_all_relaxed) <- gsub("\\.", "", names(eul_all_relaxed))
+
+p_all_pilfer <- euler(eul_all_pilfer)
+grid.arrange(grobs = list(plot(p_all_pilfer, quantities = T)), top = textGrob("\nIndividual piRNAs, Pilfer cutoff (100)" ,gp=gpar(fontsize=15,fontface = "bold")))
+
+p_all_relaxed <- euler(eul_all_relaxed)
+grid.arrange(grobs = list(plot(p_all_relaxed, quantities = T)), top = textGrob("\nIndividual piRNAs, relaxed cutoff (20)" ,gp=gpar(fontsize=15,fontface = "bold")))
+
+eul_eggs <- eul_all[grepl("Eggs", names(eul_all))] 
+names(eul_eggs) <- gsub("Eggs.", "", names(eul_eggs))
+
+eul_ylarvae <- eul_all[grepl("YoungLarvae", names(eul_all))] 
+names(eul_ylarvae) <- gsub("YoungLarvae.", "", names(eul_ylarvae ))
+
+eul_larvae  <- eul_all[grepl("4thInstarLarvae", names(eul_all))] 
+names(eul_larvae ) <- gsub("4thInstarLarvae.", "", names(eul_larvae))
+
+eul_ppupae <- eul_all[grepl("Prepupae", names(eul_all))] 
+names(eul_ppupae) <- gsub("Prepupae.", "", names(eul_ppupae))
+
+eul_pupae <- eul_all[grepl("Pupae", names(eul_all))] 
+names(eul_pupae) <- gsub("Pupae.", "", names(eul_pupae))
+
+eul_ad <- eul_all[grepl("Adults", names(eul_all))] 
+names(eul_ad) <- gsub("Adults.", "", names(eul_ad))
+
+eul_plotlist<- list(Eggs = euler(eul_eggs) %>% {plot(., quantities = T)}, Larvae = euler(eul_ylarvae) %>% {plot(., quantities = T)}, YoungLarvae = euler(eul_larvae) %>% {plot(., quantities = T)}, Prepupae = euler(eul_ppupae) %>% {plot(., quantities = T)}, Pupae = euler(eul_pupae) %>% {plot(., quantities = T)}, Adults = euler(eul_ad)%>% {plot(., quantities = T)})
+
+grid.arrange(arrangeGrob(eul_plotlist$Eggs, top = "Eggs" ), arrangeGrob(eul_plotlist$YoungLarvae, top = "YoungLarvae"), arrangeGrob(eul_plotlist$Larvae, top = "4thInstarLarvae" ), arrangeGrob(eul_plotlist$Prepupae, top = "Prepupae" ), arrangeGrob(eul_plotlist$Pupae, top = "Pupae" ), arrangeGrob(eul_plotlist$Adults, top = "Adults" ), ncol =3, top = textGrob("\nIndividual piRNAs, comparing Pilfer (100) or relaxed (20) cutoffs",gp=gpar(fontsize=15,fontface = "bold")))
+
+#heatmap of ping-pong ones
+pp_pis <- pp_logo_list
+pp_pis_pilfer <- pp_pis[grepl("Pilfer", names(pp_pis))]
+names(pp_pis_pilfer) <- NULL
+pp_pis_pilfer <- unique(unlist(pp_pis_pilfer)) #217
+pp_mat_pilfer <- all_counts_pilfer[row.names(all_counts_pilfer) %in% pp_pis_pilfer,]  #keep  normalization within sample/group
+```
+
+```{r heatmap pingpong, fig.align='center', fig.height = 20.5, fig.width = 8, echo=FALSE, warning=FALSE, message=FALSE}
+pheatmap:::pheatmap((log2(pp_mat_pilfer )),
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize = 8, cellheight = 6, cellwidth = 8, main = "ping pong piRNAs (mean log2 (expression) in cpm), Pilfer cutoff", show_rownames = F)
+```
+
+```{r heatmap pingpong select, fig.align='center', fig.height = 10.5, fig.width = 8, echo=FALSE, warning=FALSE, message=FALSE}
+
+topVar3 <-  head(order(rowVars(pp_mat_pilfer ), decreasing=TRUE),100)
+pheatmap:::pheatmap(log2(pp_mat_pilfer[topVar3,]) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize =8, cellheight = 6, cellwidth = 8, show_rownames = F, main = "100 most variable overlapping piRNAs (ping-pong enriched, mean log2 (expression) in cpm), Pilfer cutoff")
+
+#relaxed
+pp_pis <- pp_logo_list
+pp_pis_relaxed <- pp_pis[grepl("relaxed", names(pp_pis))]
+names(pp_pis_relaxed ) <- NULL
+pp_pis_relaxed  <- unique(unlist(pp_pis_relaxed)) #4990
+pp_mat_relaxed  <- all_counts_rel[row.names(all_counts_rel) %in% pp_pis_pilfer ,]
+
+topVar4 <-  head(order(rowVars(pp_mat_relaxed), decreasing=TRUE),100)
+pheatmap:::pheatmap(log2(pp_mat_relaxed[topVar4,]) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize =8, cellheight = 6, cellwidth = 8, show_rownames = F, main = "100 most variable overlapping piRNAs (ping-pong enriched, mean log2 (expression) in cpm), relaxed cutoff")
+```
+
+```{r eulerr pingpong, fig.align='center', fig.height = 7, fig.width = 8, echo=FALSE, warning=FALSE, message=FALSE}
+#Euler ping_pong
+eul_pp_pilfer <- piRNA_stat[piRNA_stat$seq %in% pp_pis_pilfer ,] %>% filter(group=="Pilfer")  %>% {split(.$seq, f=list(.$sample,.$group))}
+names(eul_pp_pilfer ) <- gsub("Pilfer", "", names(eul_pp_pilfer))
+names(eul_pp_pilfer ) <- gsub("\\.", "", names(eul_pp_pilfer ))
+eul_pp_pilfer <- lapply(eul_pp_pilfer, unique)
+
+eul_pp_relaxed <- piRNA_stat[piRNA_stat$seq %in% pp_pis_relaxed ,] %>% filter(group=="relaxed")  %>% {split(.$seq, f=list(.$sample,.$group))}
+names(eul_pp_relaxed) <- gsub("relaxed", "", names(eul_pp_relaxed))
+names(eul_pp_relaxed) <- gsub("\\.", "", names(eul_pp_relaxed))
+eul_pp_relaxed <- lapply(eul_pp_relaxed, unique)
+
+p_pp_pilfer <- euler(eul_pp_pilfer)
+grid.arrange(grobs = list(plot(p_pp_pilfer , quantities = T)), top = textGrob("\nIndividual overlapping piRNAs (ping-pong enriched), Pilfer cutoff (100)" ,gp=gpar(fontsize=15,fontface = "bold")))
+
+p_pp_relaxed <- euler(eul_pp_relaxed)
+grid.arrange(grobs = list(plot(p_pp_relaxed , quantities = T)), top = textGrob("\nIndividual overlapping piRNAs (ping-pong enriched), relaxed cutoff (20)" ,gp=gpar(fontsize=15,fontface = "bold")))
+```
+
+## Count and characterize piRNA clusters
+
+```{r cluster heatmap pilfer,  fig.align='center', fig.height = 13.5, fig.width = 10, echo=FALSE, warning=FALSE, message=FALSE}
+cluster_tsvs <- dir(base_dir, pattern = "cluster_union_merged_nk",full.names = T)
+clusters <- lapply(cluster_tsvs, read.delim, header=F,)
+names(clusters) <-gsub("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/cluster_union_merged_nk","", cluster_tsvs)
+names(clusters) <-gsub("_|\\.tsv", "", names(clusters))
+clusters_df <-rbindlist(clusters, idcol=T)
+
+cnames <- c(".id", "range","4thInstarLarvae","Adults", "Eggs", "Prepupae","Pupae","YoungLarvae")
+colnames(clusters_df) <- cnames
+clusters_df$group <- ifelse(grepl("lax", clusters_df$.id), "relaxed","Pilfer")
+clusters_df$.id<- NULL
+clusters_df <- clusters_df[!grepl("CM010870", clusters_df$range),]
+#clusters_df$range <- gsub("-", "_", clusters_df$range)
+
+clusters_to_write <- clusters_df
+clusters_to_write$range <- paste0(clusters_to_write$seqnames, ":", clusters_to_write$range)
+# write.table(clusters_to_write, "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/clusters_df.txt", col.names = T, row.names = F, quote = F, sep = "\t")
+
+#all putative 
+clust_pilfer <- clusters_df[clusters_df$group=="Pilfer",]
+clust_pilfer <-as.data.frame(clust_pilfer)
+row.names(clust_pilfer) <- clust_pilfer[,1]
+clust_pilfer <- clust_pilfer[,-1]
+clust_pilfer$group <- NULL
+clust_pilfer <- clust_pilfer+1
+
+pheatmap:::pheatmap(log2(clust_pilfer),
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize = 8, cellheight = 6, cellwidth = 8, main = "\npiRNA clusters (mean log2 (score)), Pilfer cutoff")
+```
+
+```{r cluster heatmap relaxed,  fig.align='center', fig.height = 25, fig.width = 10, echo=FALSE, warning=FALSE, message=FALSE}
+clust_relaxed <- clusters_df[clusters_df$group=="relaxed",]
+clust_relaxed <-as.data.frame(clust_relaxed)
+row.names(clust_relaxed) <- clust_relaxed[,1]
+clust_relaxed <-clust_relaxed[,-1]
+clust_relaxed$group <- NULL
+clust_relaxed <- clust_relaxed+1
+
+pheatmap:::pheatmap(log2(clust_relaxed),
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize = 8, cellheight = 6, cellwidth = 8, main = "piRNA clusters (mean log2 (score)), relaxed cutoff")
+```
+
+```{r eulerr cluster,  fig.align='center', fig.height = 8, fig.width = 8, echo=FALSE, warning=FALSE, message=FALSE}
+clust_l <- reshape2::melt(clusters_df,id.vars= c("range","group"))
+clust_l <- clust_l[clust_l$value>0,]
+
+eul_all_clust <- clust_l %>% {split(.$range, f=list(.$variable,.$group))}
+eul_clust_pilfer <- eul_all_clust[grepl("Pilfer", names(eul_all_clust))] 
+names(eul_clust_pilfer) <- gsub("Pilfer", "", names(eul_clust_pilfer))
+names(eul_clust_pilfer) <- gsub("\\.", "", names(eul_clust_pilfer))
+
+eul_clust_relaxed <- eul_all_clust[!grepl("Pilfer", names(eul_all_clust))] 
+names(eul_clust_relaxed) <- gsub("relaxed", "", names(eul_clust_relaxed))
+names(eul_clust_relaxed) <- gsub("\\.", "", names(eul_clust_relaxed))
+
+p_clust_pilfer <- euler(eul_clust_pilfer)
+grid.arrange(grobs = list(plot(p_clust_pilfer, quantities = T)), top = textGrob("\npiRNA clusters, Pilfer cutoff (100)" ,gp=gpar(fontsize=15,fontface = "bold")))
+
+p_clust_relaxed <- euler(eul_clust_relaxed)
+grid.arrange(grobs = list(plot(p_clust_relaxed, quantities = T)), top = textGrob("\npiRNA clusters, relaxed cutoff (20)" ,gp=gpar(fontsize=15,fontface = "bold")))
+```
+
+```{r cluster counts,  fig.align='center', fig.height = 4, fig.width = 6, echo=FALSE, warning=FALSE, message=FALSE}
+clust_l$variable <- factor(clust_l$variable, levels =unique(clust_l$variable)[c(3,6,1, 4, 5,2)])
+
+clust_l %>% group_by(variable, group) %>% summarise(count = n())  %>% ggplot(., aes(x=variable, y = count,  fill = group))+ geom_bar(stat = "identity", position = "dodge", colour = "black") + theme_bw()+ labs(title="\nClusters by sample and filtering", y="cluster count",x="\nsample") + theme(axis.text.x = element_text(angle = 45,hjust=1)) 
+```
+
+```{r cluster dens,  fig.align='center', fig.height = 4, fig.width = 12, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(clust_l, aes(log2(value), colour = group, group=group)) +  geom_density() + theme_bw()  + facet_grid(. ~ variable) + labs(title = "Distribution of cluster scores", x= "log2 (cluster score)")
+
+#so,check overlap of clusters called by Pilfer or relaxed filtering 
+clust_l$seqnames <- str_split_fixed(clust_l$range, ":",2)[,1]
+clust_l$range <- str_split_fixed(clust_l$range, ":",2)[,2]
+clust_l$start <- str_split_fixed(clust_l$range, "-",2)[,1]
+clust_l$end <- str_split_fixed(clust_l$range, "-",2)[,2]
+clust_l$width <- as.numeric(clust_l$end) - as.numeric(clust_l$start)
+```
+
+```{r cluster distributions,  fig.align='center', fig.height =4, fig.width = 14, echo=FALSE, warning=FALSE, message=FALSE}
+clust_l <- clust_l %>% group_by(variable, group) %>% mutate(obs=n()) %>%  ungroup()%>% mutate(sample_obs = paste0(group, ": n = ",obs))
+
+my_clust_labs <- data.frame(lab = clust_l   %>% {unique(.[,c("variable", "group", "sample_obs")])} %>% {(.$sample_obs)}, width = rep(300000, 12), density = rep(c(0.000042, 0.00004),6), variable = clust_l   %>% {unique(.[,c("variable", "group", "sample_obs")])} %>% {(.$variable)}, group = clust_l    %>% {unique(.[,c("variable", "group", "sample_obs")])} %>% {(.$group)} )
+
+ggplot(clust_l, aes(x=width, colour=group)) + geom_density() + theme_bw() + geom_vline(xintercept = 100000, linetype="dotted")  + facet_grid(.~ variable)  + geom_text(data = my_clust_labs, aes(x =width, y= density, label=lab) , size = 3, show.legend = F)+ labs(title = "piRNA cluster width by sample and group",
+       subtitle = "(vertical line indicates 100kb)", x = "cluster width")
+
+#Now get overlapping in each filtering cond
+clusters_df$seqnames <- str_split_fixed(clusters_df$range, ":",2)[,1]
+clusters_df$range <- str_split_fixed(clusters_df$range, ":",2)[,2]
+clusters_df$start <- str_split_fixed(clusters_df$range, "-",2)[,1]
+clusters_df$end <- str_split_fixed(clusters_df$range, "-",2)[,2]
+
+#look at all by .id
+clusterGR <- makeGRangesFromDataFrame(clusters_df,
+                                     keep.extra.columns=T,
+                                     ignore.strand=FALSE,
+                                     seqinfo=NULL,
+                                     seqnames.field="seqnames",
+                                     start.field="start",
+                                     end.field="end",
+                                     starts.in.df.are.0based=FALSE)
+
+#don't annotate since too large
+
+#check if pilfer clusters are represented in relaxed clusters
+rel_clustGR <- clusterGR[clusterGR$group=="relaxed"]
+pilfer_clustGR <- clusterGR[clusterGR$group=="Pilfer"]
+#subsetByOverlaps(pilfer_clustGR,rel_clustGR) # all are within relaxed, just not exactly the same ranges
+
+#now get % piRNAs in clusters; make unique or dup dataframe
+#first split piGR and clust GR by id
+all_pis$ID <-  paste0(all_pis$sample, "_", all_pis$group)
+all_pis_split <- split(all_pis, f = all_pis$ID )
+
+clust_lGR <- makeGRangesFromDataFrame(clust_l[,c(2:7)],
+                                     keep.extra.columns=T,
+                                     ignore.strand=FALSE,
+                                     seqinfo=NULL,
+                                     seqnames.field="seqnames",
+                                     start.field="start",
+                                     end.field="end",
+                                     starts.in.df.are.0based=FALSE)
+
+clust_lGR$ID <-  paste0(clust_lGR$variable, "_", clust_lGR$group)
+pis_in_clust <-  mergeByOverlaps(all_pis, clust_lGR)
+pis_in_clust_df <- as.data.frame(pis_in_clust)
+pis_in_clust_df <- pis_in_clust_df[pis_in_clust_df$all_pis.ID ==pis_in_clust_df$clust_lGR.ID,] #only take piRNAs and clusters from same sample
+
+piRNA_stat$pi_ID <- paste0(piRNA_stat$sample,"_", piRNA_stat$group, ":", piRNA_stat$V1, ":", piRNA_stat$V2, "-", piRNA_stat$V3 ,":", piRNA_stat$V6,":", piRNA_stat$seq) #good  these are all unique
+
+piRNA_stat$V4 <- NULL
+
+pis_in_clust_df$pi_ID <- paste0(pis_in_clust_df$sample,"_", pis_in_clust_df$group, ":", pis_in_clust_df$all_pis.seqnames, ":", pis_in_clust_df$all_pis.start, "-", pis_in_clust_df$all_pis.end ,":", pis_in_clust_df$all_pis.strand,":", pis_in_clust_df$seq)
+
+pis_in_clust_df[,c(1:22)]  <- NULL
+pis_in_clust_df$ID.1<- NULL
+pis_in_clust_df$cluster_range <- paste0(pis_in_clust_df$clust_lGR.seqnames, ":", pis_in_clust_df$clust_lGR.start, "-", pis_in_clust_df$clust_lGR.end)
+pis_in_clust_df[,c(1:2)] <- NULL
+pis_in_clust_df[,c(2:4)] <- NULL
+pis_in_clust_df[,c(3:5)] <- NULL
+pis_in_clust_df[,c(4:6)] <- NULL
+pis_in_clust_df$clust_lGR.value<- NULL
+pis_in_clust_df <- setNames(pis_in_clust_df, c("group_ID", "cluster_width", "cluster_score", "pi_ID", "cluster_range" ))
+
+#append cluster info to piRNAs and start to mkae datatables
+
+#one allowing duplicates so can show location
+piRNA_stat_m <- merge(piRNA_stat, pis_in_clust_df, by="pi_ID", all.x = T)
+piRNA_stat_m$group_ID <- paste0(piRNA_stat_m$sample, "_",piRNA_stat_m$group)
+piRNA_stat_m$.id <- NULL
+colnames(piRNA_stat_m) <- gsub("seq", "sequence", colnames(piRNA_stat_m))
+#one removing locations to get unique seqs 
+piRNA_stat_un_m <- piRNA_stat_m 
+piRNA_stat_un_m$pi_ID <- NULL
+piRNA_stat_un_m$V1 <- NULL
+piRNA_stat_un_m$V2 <- NULL
+piRNA_stat_un_m$V3 <- NULL
+piRNA_stat_un_m$V6 <- NULL
+piRNA_stat_un_m  <- unique(piRNA_stat_un_m)
+```
+
+```{r cluster stat,  fig.align='center', fig.height = 4, fig.width = 12, echo=FALSE, warning=FALSE, message=FALSE}
+num_pis_per_clust <- piRNA_stat_un_m %>% group_by(group_ID, cluster_range) %>% summarize(cluster_score = first(cluster_score), cluster_width=first(cluster_width), num_piRNAs = n(), sample=first(sample), group=first(group), mean_counts = mean(V5), mean_counts_norm = mean(counts_norm))
+
+ggplot(num_pis_per_clust[!is.na(num_pis_per_clust$cluster_score),], aes(x=log2(cluster_score), y = log2(num_piRNAs), colour =group))+ geom_point() + theme_bw() +facet_grid(. ~ sample)+ labs(title="Number of unique piRNAs by cluster score",y="log2 (number of piRNAs)",  x="log2 (cluster score)")
+
+ggplot(num_pis_per_clust[!is.na(num_pis_per_clust$cluster_score),], aes(log2(num_piRNAs), colour = group))+ stat_ecdf() + theme_bw() +facet_grid(. ~ sample) + labs(title="Number of unique piRNAs in clusters by filtering", y="cumulative fraction",  x="log2 (number of piRNAs)")
+
+ggplot(num_pis_per_clust[!is.na(num_pis_per_clust$cluster_score),], aes(x=log2(cluster_score), y = log2(mean_counts_norm), colour =group))+ geom_point() + theme_bw() +facet_grid(. ~ sample) + labs(title="Average normalized read depth of unique piRNAs by cluster score", y="log2 (mean piRNA counts)",  x="log2 (cluster score)")
+
+piRNA_stat_un_m$cluster_status <- ifelse(is.na(piRNA_stat_un_m$cluster_range), "not in cluster", "in cluster")
+
+#ggplot(piRNA_stat_un_m, aes(log2(counts_norm),  colour = cluster_status))+ stat_ecdf() + theme_bw() +facet_grid(. ~ group_ID) 
+
+#no corr for cluster width and cluster score, no corr for piRNA read counts/norm counts and cluster width; but more piRNAs/clust in relaxed condition;  also no consistent differences in expression of piRNAs by cluster status
+
+piRNA_stat_un_m$cluster_info <- paste0(piRNA_stat_un_m$cluster_range, ",", piRNA_stat_un_m$cluster_width, ",", piRNA_stat_un_m$cluster_score)
+
+piRNA_stat_un_m <- piRNA_stat_un_m %>% group_by(no_loc_ID) %>% summarise(group_ID = first(group_ID), sample = first(sample),group = first(group), sequence =first(sequence), length=first(length), reads = mean(V5), counts_norm =mean(counts_norm), cluster_info = paste0(cluster_info, collapse = "; "))
+
+#one of summary stats
+clust_num <- piRNA_stat_m %>% group_by(group_ID)  %>% filter(!duplicated(cluster_range)& !is.na(cluster_range))  %>%   summarize(number_of_clusters = n(), sample = first(sample), group = first(group), mean_cluster_score = mean(cluster_score))
+
+pi_num <- piRNA_stat_un_m %>% group_by(group_ID)  %>% summarize(sample = first(sample), group = first(group),  number_of_piRNAs = n(), mean_piRNA_counts = mean(reads), total_piRNA_counts =sum(reads), mean_piRNA_counts_norm = mean(counts_norm),  median_piRNA_length = median(length))
+
+pp_names <- c("counts_norm_int", "seq", "sample", "group", "counts", "counts_norm", "length")
+piRNA_lim_pos <- setNames(piRNA_lim_pos, pp_names)
+piRNA_lim_neg <- setNames(piRNA_lim_neg, pp_names)
+ping_pong_stat_un <- rbind(piRNA_lim_pos, piRNA_lim_neg)
+
+ping_pong_stat_un$group_ID <- paste0(ping_pong_stat_un$sample,"_",  ping_pong_stat_un$group)
+ping_pong_stat_un$duplicated <- duplicated(ping_pong_stat_un[,c("group_ID", "seq")])  #leftover dups from allowing same  on different strands, have the same counts
+ping_pong_stat_un <- ping_pong_stat_un[ping_pong_stat_un$duplicated==FALSE,]
+
+ping_pong_num <- ping_pong_stat_un %>% group_by(group_ID) %>% summarize(number_of_ping_pong_piRNAs = n(), mean_ping_pong_piRNA_counts = mean(counts), total_ping_pong_piRNA_counts =sum(counts), mean_ping_pong_piRNA_counts_norm = mean(counts_norm),  median_ping_pong_piRNA_length = median(length))
+
+pi_in_clust_num <- piRNA_stat_un_m %>% group_by(group_ID) %>% filter(cluster_info!="NA,NA,NA") %>% summarize(number_of_piRNAs_in_clusters = n(), mean_piRNA_counts_in_clusters = mean(reads), total_piRNA_counts_in_clusters = sum(reads), mean_piRNA_counts_norm_in_clusters = mean(counts_norm),  median_piRNA_length_in_clusters = median(length))
+
+pi_num <- merge(pi_num, ping_pong_num, by="group_ID", all=T)
+pi_num$percentage_ping_pong_piRNAs <- (pi_num$number_of_ping_pong_piRNAs/pi_num$number_of_piRNAs)*100
+
+pi_num <- merge(pi_num, clust_num[,c("group_ID", "number_of_clusters", "mean_cluster_score")], by="group_ID", all=T)
+
+pi_num <- merge(pi_num, pi_in_clust_num, by="group_ID", all=T)
+pi_num$percentage_piRNAs_in_clusters <- (pi_num$number_of_piRNAs_in_clusters/pi_num$number_of_piRNAs)*100
+```
+
+## TE-overlapping piRNAs
+
+#### length distribution 
+
+```{r  TE piRNA expression, fig.align='center', fig.height = 4, fig.width = 12, echo=FALSE, message=FALSE, warning=FALSE}
+#TE overlap
+TE_pi_files <- dir(TE_dir, pattern="QF*",full.names =T)
+TE_pi_files <- grep("nk",TE_pi_files,value = T)
+TE_pi <- lapply(TE_pi_files, read.delim, header = F)
+names(TE_pi)<- gsub("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/TE_origin/", "", TE_pi_files)
+names(TE_pi)<- gsub("_ann_sam_out_nk", "", names(TE_pi))
+names(TE_pi)<- gsub("_subtract_ncRNA", "", names(TE_pi))
+names(TE_pi)<- gsub("QF_", "", names(TE_pi))
+TE_pi_df <- rbindlist(TE_pi, idcol=T)
+TE_pi_df$seq <- str_split_fixed(TE_pi_df$V4, "::", 2)[,1]
+TE_pi_df$length<- nchar(TE_pi_df$seq)
+TE_pi_df$sample <- str_split_fixed(TE_pi_df$.id, "_", 2)[,1]
+TE_pi_df$sample <- factor(TE_pi_df$sample, levels =unique(TE_pi_df$sample)[c(3,6,1, 4, 5,2)])
+TE_pi_df$group <- ifelse(grepl("lax", TE_pi_df$.id), "relaxed", "Pilfer")
+TE_pi_df <- TE_pi_df[TE_pi_df$V1!="CM010870.1",]
+TE_pi_df <- TE_pi_df[!grepl("rRNA",TE_pi_df$V7),]
+TE_pi_df <- TE_pi_df[!grepl("Unknown",TE_pi_df$V7),]
+TE_pi_df <- TE_pi_df[!grepl("Simple_repeat",TE_pi_df$V7),]
+TE_pi_df$no_loc_ID <- paste0(TE_pi_df$sample, "_", TE_pi_df$group, ":", TE_pi_df$seq)
+TE_pi_df$group_ID <- paste0(TE_pi_df$sample, "_", TE_pi_df$group)
+TE_pi_df <- merge(TE_pi_df, unique(piRNA_stat_un[,c("no_loc_ID", "counts_norm")]), by  =  "no_loc_ID", all.x=T) # added the counts from all piRNAs together 
+TE_pi_df <- unique(TE_pi_df)
+TE_pi_df$pi_ID <- paste0(TE_pi_df$sample,"_", TE_pi_df$group, ":", TE_pi_df$V1, ":", TE_pi_df$V2, "-", TE_pi_df$V3,":", TE_pi_df$V6,":", TE_pi_df$seq) #good  these are all unique 
+
+TE_pi_df_un_rep <- TE_pi_df %>% group_by(no_loc_ID, seq, V7) %>% summarise(V5 = mean(V5), counts_norm = mean(counts_norm), group_ID = first(group_ID), sample = first(sample), group=first(group), length=first(length))
+
+TE_pi_df_un <- TE_pi_df_un_rep %>% group_by(no_loc_ID, seq) %>% summarise(V5 = mean(V5), counts_norm = mean(counts_norm),group_ID = first(group_ID), sample = first(sample), group=first(group), length=first(length), detailed_ann = paste0(V7,collapse = "; "))
+
+##exp
+ggplot(TE_pi_df_un, aes(x=log2(V5), colour=group)) + geom_density() + theme_bw() + geom_vline(xintercept = 4.32, linetype="dotted") + geom_vline(xintercept = 6.64, linetype="dotted")  + labs(title = "TE piRNA expression by sample and group",
+       subtitle = "(Pilfer cutoff = 100, relaxed cutoff = 20, vertical lines indicate cutoff)", x = "log2(piRNA expression)") + facet_grid(.~ sample)  
+
+ggplot(TE_pi_df_un, aes(x=log2(counts_norm), colour=group)) + geom_density() + theme_bw() + labs(title = "Normalized TE piRNA expression by sample and group",
+       subtitle = "(Pilfer cutoff = 100, relaxed cutoff = 20,)", x = "log2(piRNA expression) in cpm") + facet_grid(.~ sample)   
+```
+
+```{r  TE piRNA length, fig.align='center', fig.height = 4, fig.width = 14, echo=FALSE, message=FALSE, warning=FALSE}
+##  lens
+TE_piRNA_lens <- TE_pi_df_un %>% group_by(sample,group, length) %>% summarise(counts = n(), counts_norm = sum(counts_norm), group_ID = first(group_ID)) %>% group_by(sample,group) %>%  mutate(percent = counts/sum(counts), percent_norm = counts_norm/sum(counts_norm))
+
+ggplot(TE_piRNA_lens, aes(x=length, y=percent, fill=group)) + geom_bar(stat = "identity", position = position_dodge2(width = 0.9, preserve = "single"), colour="black") + theme_bw()  + labs(title ="Length distribution of TE piRNAs", subtitle = "Pilfer cutoff = 100, relaxed cutoff = 20, unique piRNAs") + facet_grid(.~ sample)#
+
+ggplot(TE_piRNA_lens, aes(x=length, y=percent_norm, fill=group)) + geom_bar(stat = "identity", position = position_dodge2(width = 0.9, preserve = "single"), colour="black") + theme_bw()  + labs(title ="Length distribution of TE piRNAs", subtitle = "Pilfer cutoff = 100, relaxed cutoff = 20, unique piRNAs normalized to read depth") + facet_grid(.~ sample)
+```
+
+####  TE family annotation
+
+```{r TE ann samples,  fig.align='center', fig.height = 6, fig.width = 12, echo=FALSE, message=FALSE, warning=FALSE}
+#then look for % different TEs
+TE_pi_df_un_rep$feature <- str_split_fixed(TE_pi_df_un_rep$V7,"/", 2)[,1] #here allowing a small subset of piRNAs that map to both 
+
+#TE_pi_df_un_rep$duplicated <- duplicated(TE_pi_df_un_rep[,c("no_loc_ID", "V7")]) #0, good
+TE_pi_df_un_rep$duplicated <- duplicated(TE_pi_df_un_rep[,c("no_loc_ID", "feature")]) # re-check dups with simplified ann; 6, remove the same group/seq if both to different specific features in the same category (ie DNA) but allow other feature categories
+
+TE_pi_df_un_rep <- TE_pi_df_un_rep[TE_pi_df_un_rep$duplicated==FALSE,]
+
+TE_ann_plot <- TE_pi_df_un_rep %>% group_by(sample,group,feature) %>% summarise(num_piRNAs = n(), counts = sum(V5), counts_norm=sum(counts_norm), group_ID = first(group_ID)) %>% mutate(percent_piRNAs = num_piRNAs/sum(num_piRNAs), norm_depth_piRNAs =counts_norm/sum(counts_norm), depth_piRNAs =counts/sum(counts))
+
+ggplot(TE_ann_plot, aes(x=sample, y=percent_piRNAs, fill=feature)) +
+  geom_col() +
+  coord_polar("y") + scale_x_discrete(limits=c(" ", xscale)) + theme_bw() + labs(title ="TE piRNA annotation", subtitle = "percentage unique TE piRNAs, comparing samples", y="")+ facet_grid(.~ group) 
+
+ggplot(TE_ann_plot, aes(x=sample, y=norm_depth_piRNAs, fill=feature)) +
+  geom_col() +
+  coord_polar("y") + scale_x_discrete(limits=c(" ", xscale)) + theme_bw() + labs(title ="piRNA annotation", subtitle = "percentage unique TE piRNAs normalized to read depth, comparing samples", y="")+ facet_grid(.~ group) 
+```
+
+```{r TE ann filtering,  fig.align='center', fig.height = 3, fig.width = 14, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(TE_ann_plot, aes(x=group, y=percent_piRNAs, fill=feature)) +
+  geom_col() +
+  coord_polar("y") + scale_x_discrete(limits=c(" ", "Pilfer","relaxed")) + theme_bw() + labs(title ="TE piRNA annotation", subtitle = "percentage unique TE piRNAs, comparing filtering", y="")+ facet_grid(.~ sample) 
+
+ggplot(TE_ann_plot, aes(x=group, y=norm_depth_piRNAs, fill=feature)) +
+  geom_col() +
+  coord_polar("y") + scale_x_discrete(limits=c(" ", "Pilfer","relaxed")) + theme_bw()  + labs(title ="piRNA annotation", subtitle = "percentage unique TE piRNAs normalized to read depth, comparing filtering", y="") +  facet_grid(.~ sample) 
+```
+
+```{r TE ann heatmap,  fig.align='center', fig.height = 4, fig.width = 8, echo=FALSE, warning=FALSE, message=FALSE}
+## also do heatmap by detailed ann
+TE_pilfer_pis <- unique(subset(TE_pi_df_un_rep$seq, TE_pi_df_un_rep$group=="Pilfer")) #395/6960
+
+TE_mat_pilfer <- all_counts_pilfer[row.names(all_counts_pilfer) %in% TE_pilfer_pis,]  #keep  normalization within sample/group
+
+TE_mat_pilfer_ann <- merge(TE_mat_pilfer, unique(TE_pi_df_un_rep[,c("seq", "V7")]), by.x=0, by.y ="seq", all.x=T)
+TE_mat_pilfer_ann$Row.names <- NULL
+TE_mat_pilfer_ann <- TE_mat_pilfer_ann %>% group_by(V7) %>% summarize_all(list(mean=mean, sum=sum))%>% as.data.frame(.)
+row.names(TE_mat_pilfer_ann) <- TE_mat_pilfer_ann$V7
+TE_mat_pilfer_ann$V7 <-NULL
+
+# pheatmap:::pheatmap(t(log2(TE_mat_pilfer_ann[grepl("mean", colnames(TE_mat_pilfer_ann))])),
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 8, cellheight = 12, cellwidth = 12, main = "piRNA expression from TE families (mean log2 (cpm)), Pilfer cutoff")
+
+pheatmap:::pheatmap(t(log2(TE_mat_pilfer_ann[grepl("sum", colnames(TE_mat_pilfer_ann))])),
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize = 8, cellheight = 12, cellwidth = 12, main = "piRNA expression from TE families (sum log2 (cpm)), Pilfer cutoff")
+
+#clustering is the same by mean or sum
+
+#relaxed
+TE_relaxed_pis <- unique(subset(TE_pi_df_un_rep$seq, TE_pi_df_un_rep$group=="relaxed")) #2429/36671
+
+TE_mat_rel <- all_counts_rel[row.names(all_counts_rel) %in% TE_relaxed_pis,]  #keep  normalization within sample/group
+
+TE_mat_rel_ann <- merge(TE_mat_rel, unique(TE_pi_df_un_rep[,c("seq", "V7")]), by.x=0, by.y ="seq", all.x=T)
+TE_mat_rel_ann$Row.names <- NULL
+TE_mat_rel_ann <- TE_mat_rel_ann %>% group_by(V7) %>% summarize_all(list(mean=mean, sum=sum))%>% as.data.frame(.)
+row.names(TE_mat_rel_ann) <- TE_mat_rel_ann$V7
+TE_mat_rel_ann$V7 <-NULL
+
+# pheatmap:::pheatmap(t(log2(TE_mat_rel_ann[grepl("mean", colnames(TE_mat_rel_ann))])),
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 8, cellheight = 12, cellwidth = 12, main = "piRNA expression from TE families (mean log2 (cpm)), relaxed cutoff")
+
+pheatmap:::pheatmap(t(log2(TE_mat_rel_ann[grepl("sum", colnames(TE_mat_rel_ann))])),
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize = 8, cellheight = 12, cellwidth = 12, main = "piRNA expression from TE families (sum log2 (cpm)), relaxed cutoff")
+
+
+TE_ann_plot <- merge(TE_ann_plot, pi_num[,c("group_ID", "number_of_piRNAs", "total_piRNA_counts")], by="group_ID", all = T)
+
+TE_ann_plot <-TE_ann_plot %>% group_by(group_ID) %>% mutate(number_of_TE_pis = sum(num_piRNAs), TE_piRNA_counts = sum(counts), TE_piRNA_counts_norm =sum(counts_norm))
+
+TE_ann_plot <-TE_ann_plot %>% group_by(group_ID)  %>% mutate(num_non_TE_pis = number_of_piRNAs-number_of_TE_pis, non_TE_counts = total_piRNA_counts-TE_piRNA_counts, non_TE_counts_norm = 1E6-TE_piRNA_counts_norm)
+
+TE_ann_plot_lim  <- TE_ann_plot[,c("group_ID","sample", "group","feature", "num_piRNAs", "counts", "counts_norm")]
+non_TE <- TE_ann_plot[,c("group_ID","sample", "group","feature","num_non_TE_pis", "non_TE_counts", "non_TE_counts_norm")]
+non_TE$feature <- rep("not TE", nrow(non_TE))
+non_TE <-unique(non_TE)
+non_TE  <- setNames(non_TE, colnames(TE_ann_plot_lim))
+TE_ann_plot_lim <- rbind(TE_ann_plot_lim , non_TE)
+
+TE_ann_plot_lim  <- TE_ann_plot_lim  %>% group_by(group_ID)  %>% mutate(percent_piRNAs = num_piRNAs/sum(num_piRNAs), percent_piRNA_counts = counts/sum(counts), percent_piRNA_counts_norm = counts_norm/sum(counts_norm))
+
+# ggplot(TE_ann_plot_lim, aes(x=group, y = percent_piRNAs,fill = feature)) +geom_bar(stat = "identity",position = position_dodge2(width = 0.9, preserve = "single"), colour="black") +theme_bw() +facet_grid(.~sample)
+# 
+# ggplot(TE_ann_plot_lim, aes(x=group, y = percent_piRNA_counts,fill = feature)) +geom_bar(stat = "identity",position = position_dodge2(width = 0.9, preserve = "single"), colour="black") +theme_bw() +facet_grid(.~sample)
+# 
+# ggplot(TE_ann_plot_lim, aes(x=sample, y = log2(num_piRNAs),fill = feature)) +geom_bar(stat = "identity",position = position_dodge2(width = 0.9, preserve = "single"), colour="black") +theme_bw() +theme(axis.text.x = element_text(angle = 45,hjust=1))+ facet_grid(.~group)
+
+TE_ann_plot_lim$ann_col <- ifelse(TE_ann_plot_lim$feature=="not TE", "not TE", "TE")
+
+TE_ann_simp <- TE_ann_plot_lim %>% group_by(group_ID,ann_col) %>% summarise(counts_norm = sum(counts_norm), num_piRNAs=sum(num_piRNAs), percent_piRNAs = sum(percent_piRNAs), percent_piRNA_counts=sum(percent_piRNA_counts),group=first(group), sample=first(sample))
+```
+
+```{r TE piRNA stat,  fig.align='center', fig.height = 4, fig.width = 8, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(TE_ann_simp, aes(x=sample, y = counts_norm,fill = ann_col )) +geom_bar(stat = "identity",position = position_dodge2(width = 0.9, preserve = "single"), colour="black") +theme_bw() +theme(axis.text.x = element_text(angle = 45,hjust=1))+ facet_grid(.~group) + labs(title = "Normalized piRNA counts by TE status", y="piRNA counts (cpm)", x="sample\n")
+
+ggplot(TE_ann_simp, aes(x=sample, y = percent_piRNAs,fill = ann_col )) +geom_bar(stat = "identity",position = position_dodge2(width = 0.9, preserve = "single"), colour="black") +theme_bw() +theme(axis.text.x = element_text(angle = 45,hjust=1))+ facet_grid(.~group)  + labs(title = "Percentage of unique piRNAs by TE status", y="percentage piRNAs", x="sample\n")
+```
+
+#### TE piRNA ping-pong signatures
+
+```{r TE seqlogo,  fig.align='center', fig.height = 8, fig.width = 8, echo=FALSE, warning=FALSE, message=FALSE}
+#remove repeat info and add  strand info to look at seqlogos
+TE_pi_df_unl <- TE_pi_df %>% group_by(sample, group, seq, V6) %>% summarise(V5 = mean(V5), counts_norm = mean(counts_norm), .id = first(.id), sample = first(sample), group=first(group), length=first(length), no_loc_ID = first(no_loc_ID))
+TE_pi_df_unl$duplicated <- duplicated(TE_pi_df_unl$no_loc_ID)
+
+TE_logo_list <-  TE_pi_df_unl %>% {split(.$seq, f=list(.$sample,.$group, .$V6))}
+#identical(lapply(TE_logo_list, length), lapply(TE_logo_list, unique) %>% {lapply(., length)}) #TRUE, good
+TE_trim <- lapply(TE_logo_list, substr, start=1, stop=24)
+names(TE_trim) <- gsub("\\.", " ", names(TE_trim))
+names(TE_trim) <- gsub("-", "antisense", names(TE_trim))
+names(TE_trim) <- gsub("\\+", "sense", names(TE_trim))
+TE_trim_pilfer <- TE_trim[grepl("Pilfer", names(TE_trim))] 
+TE_trim_pilfer <- TE_trim_pilfer[c(7, 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6)]
+names(TE_trim_pilfer) <- gsub("Pilfer ", "", names(TE_trim_pilfer))
+
+TE_trim_relaxed <- TE_trim[!grepl("Pilfer", names(TE_trim))] 
+TE_trim_relaxed <- TE_trim_relaxed[c(7, 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6)]
+names(TE_trim_relaxed) <- gsub("relaxed ", "", names(TE_trim_relaxed))
+
+ggseqlogo(TE_trim_pilfer, ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="TE piRNA seqlogos", subtitle = "unique TE piRNAs, Pilfer cutoff of 100")
+
+ggseqlogo(TE_trim_relaxed , ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="TE piRNA seqlogos", subtitle = "unique TE piRNAs, relaxed cutoff of 20")
+
+# ## try expanding seqs by read counts
+# TE_pi_df_unl$counts_norm_int <- round(TE_pi_df_unl$counts_norm)
+# TE_piRNA_lim <- TE_pi_df_unl[,c("counts_norm_int", "seq", "sample", "group", "V6")] 
+# TE_piRNA_stat_expand <- vector(mode = "list",length = nrow(TE_piRNA_lim))
+# for (i in 1:nrow(TE_piRNA_lim)){
+#   TE_piRNA_stat_expand[[i]] <- TE_piRNA_lim[rep(i,TE_piRNA_lim$counts_norm_int[i]),]
+# }
+# 
+# TE_piRNA_stat_expand <- rbindlist(TE_piRNA_stat_expand)
+# #sum(TE_clust_logo_df$V5) good,1413317
+# 
+# TE_logo_list_expand <-  TE_piRNA_stat_expand %>% {split(.$seq, f=list(.$sample,.$group, .$V6))}
+# TE_trim_expand <- lapply(logo_list_expand, substr, start=1, stop=24)
+# names(TE_trim_expand) <- gsub("\\.", " ", names(TE_trim_expand))
+# names(TE_trim_expand) <- gsub("-", "antisense", names(TE_trim_expand))
+# names(TE_trim_expand) <- gsub("\\+", "sense", names(TE_trim_expand))
+# TE_trim_pilfer_expand <- TE_trim_expand[grepl("Pilfer", names(TE_trim_expand))] 
+# TE_trim_pilfer_expand  <- TE_trim_pilfer_expand [c(7, 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6)]
+# names(TE_trim_pilfer_expand ) <- gsub("Pilfer ", "", names(TE_trim_pilfer_expand))
+# 
+# TE_trim_relaxed_expand <- TE_trim_expand[!grepl("Pilfer", names(TE_trim_expand))] 
+# TE_trim_relaxed_expand <- TE_trim_relaxed_expand[c(7, 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6)]
+# names(TE_trim_relaxed_expand) <- gsub("relaxed ", "", names(TE_trim_relaxed_expand))
+# 
+# ggseqlogo(TE_trim_pilfer_expand, ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="piRNA seqlogos", subtitle = "unique TE piRNAs normalized to read depth, Pilfer cutoff of 100") #lose ping pong in eggs/prepupae
+# 
+# ggseqlogo(TE_trim_relaxed_expand , ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="piRNA seqlogos", subtitle = "unique TE piRNAs normalized to read depth, relaxed cutoff of 20") #keep ping pong in eggs/prepupae
+```
+
+```{r TE pingpong distance,  fig.align='center', fig.height = 4, fig.width = 6, echo=FALSE, warning=FALSE, message=FALSE}
+#ping-pong sig for overlapping
+TE_pis <- makeGRangesFromDataFrame(TE_pi_df,
+                                     keep.extra.columns=T,
+                                     ignore.strand=FALSE,
+                                     seqinfo=NULL,
+                                     seqnames.field="V1",
+                                     start.field="V2",
+                                     end.field="V3",
+                                     strand.field="V6",
+                                     starts.in.df.are.0based=FALSE)
+
+TE_pis_pos <- TE_pis[TE_pis@strand=="+"]
+TE_pis_neg <- TE_pis[TE_pis@strand=="-"]
+
+TE_merge_opp_all <- mergeByOverlaps(TE_pis_neg, TE_pis_pos, ignore.strand = TRUE)
+TE_merge_opp_all_df <- as.data.frame(TE_merge_opp_all)
+TE_merge_opp_all_df <- TE_merge_opp_all_df[TE_merge_opp_all_df$TE_pis_neg..id==TE_merge_opp_all_df$TE_pis_pos..id,]#217/4452 ~4.9% 
+
+#think I should do this on seq instead
+TE_merge_opp_all_df$overlap_ID <- paste0(TE_merge_opp_all_df$TE_pis_neg.seq, ":", TE_merge_opp_all_df$TE_pis_pos.seq)
+TE_merge_opp_all_df$duplicated <- duplicated(TE_merge_opp_all_df[,c("sample", "group", "overlap_ID")])
+
+TE_merge_opp_all_un <- TE_merge_opp_all_df[TE_merge_opp_all_df$duplicated==FALSE,] #only 30
+
+TE_merge_opp_all_un$dist <- TE_merge_opp_all_un$TE_pis_neg.end - TE_merge_opp_all_un$TE_pis_pos.start
+TE_merge_opp_all_un <- TE_merge_opp_all_un %>% group_by(sample, group) %>% mutate(obs=n()) %>%  ungroup()%>% mutate(sample_obs = paste0(group, ": n = ",obs))
+
+TE_merge_opp_all_stat <- TE_merge_opp_all_un %>% group_by(sample, group, dist) %>% summarise(count=n(),obs=first(obs),  sample_obs  =  first(sample_obs), .id=first(.id), norm_count = sum(TE_pis_neg.counts_norm)) %>%  group_by(sample, group) %>% mutate(frequency= count/sum(count), norm_frequency= norm_count/sum(norm_count))
+
+my_TE_labs <- data.frame(lab = TE_merge_opp_all_stat  %>% {unique(.[,c("sample", "group", "sample_obs")])} %>% {(.$sample_obs)}, dist = 20, frequency = 1, sample= TE_merge_opp_all_stat  %>% {unique(.[,c("sample", "group", "sample_obs")])} %>% {(.$sample)}, group = TE_merge_opp_all_stat  %>% {unique(.[,c("sample", "group", "sample_obs")])} %>% {(.$group)} )
+my_TE_labs$norm_frequency <- my_TE_labs$frequency
+
+ggplot(TE_merge_opp_all_stat, aes(x=dist, y=frequency, colour=group)) + geom_line(show.legend = F) +xlim(0,40) +theme_bw()  + facet_grid(.~sample) +geom_text(data = my_TE_labs,label=  my_TE_labs$lab , size = 3, show.legend = F) + labs(title ="Distance between overlapping TE piRNA 5' positions", subtitle = "5' position of unique antisense piRNAs relative to\nunique 5' positions of unique sense piRNAs",x="distance (5' position of sense piRNA)", y="frequency\n(5' position of antisense piRNA)")
+
+ggplot(TE_merge_opp_all_stat, aes(x=dist, y=norm_frequency, colour=group)) + geom_line(show.legend = F) +xlim(0,40) +theme_bw()  + facet_grid(.~sample) +geom_text(data = my_TE_labs,label=  my_TE_labs$lab , size = 3, show.legend = F) + labs(title ="Distance between overlapping TE piRNA 5' positions", subtitle = "5' position of unique antisense piRNAs relative to\nunique 5' positions of unique sense piRNAs,normalized to antisense read depth",x="distance (5' position of sense piRNA)", y="frequency\n(5' position of antisense piRNA)")
+```
+
+```{r TE pingpong seqlogo,  fig.align='center', fig.height = 2, fig.width = 8, echo=FALSE, warning=FALSE, message=FALSE}
+#seq logos for overlapping
+eggs_pp_pos <- unique(TE_merge_opp_all_un$TE_pis_pos.seq)
+eggs_pp_pos <- unique(eggs_pp_pos)  #need to remove dup seqs since I allowed duplicated as long as they overlapped a  =different ping pong partner
+
+eggs_pp_neg <- unique(TE_merge_opp_all_un$TE_pis_pos.seq)
+eggs_pp_neg <- unique(eggs_pp_neg) 
+
+TE_pp_logo_list <- list(`Eggs sense` = eggs_pp_pos , `Eggs antisense` = eggs_pp_neg)
+TE_pp_trim <- lapply(TE_pp_logo_list, substr, start=1, stop=25) #here min was 25
+
+ggseqlogo(TE_pp_trim, ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="Overlapping TE piRNA seqlogos", subtitle = "sequence composition of unique overlapping TE piRNAs by strand, relaxed cutoff of 20\n (ping-pong signature)")
+
+## try expanding seqs by read counts
+# TE_merge_opp_all_un$counts_norm_int_neg <- round(TE_merge_opp_all_un$TE_pis_neg.counts_norm)
+# TE_merge_opp_all_un$counts_norm_int_pos <- round(TE_merge_opp_all_un$TE_pis_pos.counts_norm)
+# 
+# TE_pp_piRNA_lim_neg <- unique(TE_merge_opp_all_un[,c("counts_norm_int_neg", "TE_pis_neg.seq", "sample", "group", "TE_pis_neg.V5", "TE_pis_neg.counts_norm",  "TE_pis_neg.length")])
+# TE_pp_piRNA_stat_expand_neg <- vector(mode = "list",length = nrow(TE_pp_piRNA_lim_neg))
+# for (i in 1:nrow(TE_pp_piRNA_lim_neg)){
+#   TE_pp_piRNA_stat_expand_neg[[i]] <- TE_pp_piRNA_lim_neg[rep(i,TE_pp_piRNA_lim_neg$counts_norm_int_neg[i]),]
+# }
+# 
+# TE_pp_piRNA_stat_expand_neg<- rbindlist(TE_pp_piRNA_stat_expand_neg)
+# 
+# TE_pp_piRNA_lim_pos <- unique(TE_merge_opp_all_un[,c("counts_norm_int_pos", "TE_pis_pos.seq", "sample", "group", "TE_pis_pos.V5", "TE_pis_pos.counts_norm", "TE_pis_pos.length")])
+# TE_pp_piRNA_stat_expand_pos <- vector(mode = "list",length = nrow(TE_pp_piRNA_lim_pos))
+# for (i in 1:nrow(TE_pp_piRNA_lim_pos)){
+#   TE_pp_piRNA_stat_expand_pos[[i]] <- TE_pp_piRNA_lim_pos[rep(i,TE_pp_piRNA_lim_pos$counts_norm_int_pos[i]),]
+# }
+# 
+# TE_pp_piRNA_stat_expand_pos <- rbindlist(TE_pp_piRNA_stat_expand_pos)
+# 
+# egg_pp_pos_expand <- TE_pp_piRNA_stat_expand_pos$TE_pis_pos.seq
+# 
+# egg_pp_neg_expand <- TE_pp_piRNA_stat_expand_neg$TE_pis_neg.seq
+#  
+# 
+# TE_pp_logo_list_expand <- list(`Eggs sense` = egg_pp_pos_expand , `Eggs antisense` = egg_pp_neg_expand)
+# TE_pp_trim_expand <- lapply(TE_pp_logo_list_expand, substr, start=1, stop=25) #here min was 25
+# 
+# ggseqlogo(TE_pp_trim_expand, ncol=2, method="prob") + theme(axis.text = element_text(size = 8)) + labs(title ="Overlapping TE piRNA seqlogos", subtitle = "sequence composition of unique TE overlapping piRNAs by strand (normalized to read depth),\nrelaxed cutoff of 20 (ping-pong signature)") #keep ping pong in eggs/prepupae, pull out more
+
+```
+
+#### TE piRNAs heatmaps & eulerr diagrams
+
+```{r TE heatmaps,  fig.align='center', fig.height = 10.5, fig.width = 10, echo=FALSE, warning=FALSE, message=FALSE}
+# pheatmap:::pheatmap(t(log2(TE_mat_pilfer)),
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 8, cellheight = 8, cellwidth = 4, main = "", show_colnames = F)
+
+topVar5 <-  head(order(rowVars(TE_mat_pilfer), decreasing=TRUE),100)
+pheatmap:::pheatmap(log2(TE_mat_pilfer[topVar5,]) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize =8, cellheight = 6, cellwidth = 8, show_rownames = F, main = "100 most variable TE piRNAs (log2 (expression) in cpm), Pilfer cutoff")
+
+topVar6 <-  head(order(rowVars(TE_mat_rel), decreasing=TRUE),100)
+pheatmap:::pheatmap(log2(TE_mat_rel[topVar6,]) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize =8, cellheight = 6, cellwidth = 8, show_rownames = F, main = "100 most variable TE piRNAs (log2 (expression) in cpm), relaxed cutoff")
+```
+
+```{r TE eulerr,  fig.align='center', fig.height = 7, fig.width = 8, echo=FALSE, warning=FALSE, message=FALSE}
+eul_all_TE <- TE_pi_df_un_rep %>% {split(.$seq, f=list(.$sample,.$group))}
+
+eul_TE_pilfer <- eul_all_TE[grepl("Pilfer", names(eul_all_TE))] 
+names(eul_TE_pilfer) <- gsub("Pilfer", "", names(eul_TE_pilfer))
+names(eul_TE_pilfer) <- gsub("\\.", "", names(eul_TE_pilfer))
+eul_TE_pilfer <- lapply(eul_TE_pilfer,unique)
+
+eul_TE_relaxed <- eul_all_TE[!grepl("Pilfer", names(eul_all_TE))] 
+names(eul_TE_relaxed) <- gsub("relaxed", "", names(eul_TE_relaxed))
+names(eul_TE_relaxed) <- gsub("\\.", "", names(eul_TE_relaxed))
+eul_TE_relaxed <- lapply(eul_TE_relaxed,unique)
+
+p_TE_pilfer <- euler(eul_TE_pilfer)
+grid.arrange(grobs = list(plot(p_TE_pilfer, quantities = T)), top = textGrob("\nTE piRNAs, Pilfer cutoff (100)" ,gp=gpar(fontsize=15,fontface = "bold")))
+
+p_TE_relaxed <- euler(eul_TE_relaxed)
+grid.arrange(grobs = list(plot(p_TE_relaxed, quantities = T)), top = textGrob("\nTE piRNAs, relaxed cutoff (20)" ,gp=gpar(fontsize=15,fontface = "bold")))
+```
+
+```{r finish table, echo=FALSE, warning=FALSE, message=FALSE}
+# #Finish data tables; want to add col if ping pong, if TE and add piRNA id
+# piRNA_stat_m <- piRNA_stat_m %>% group_by(sequence) %>%  mutate(piRNA_ID = cur_group_id())
+# 
+# #add ann to one with dups allowed
+# piRNA_stat_m <- merge(piRNA_stat_m, unique( ann_pi_df[,c("pi_ID", "annotation")]),  by.x="pi_ID", all.x=T)
+# 
+# #location in any sample
+# ann_lim <- piRNA_stat_m %>% group_by(sequence) %>% summarise(unique(annotation))
+# ann_lim <- ann_lim %>% group_by(sequence) %>% summarise(annotation = paste0(`unique(annotation)`, collapse = ";"))
+# 
+# piRNA_stat_un_m <- merge(piRNA_stat_un_m, ann_lim , by="sequence", all.x=T)
+# 
+# piRNA_stat_un_m  <- merge(piRNA_stat_un_m, unique(piRNA_stat_m[,c("sequence", "piRNA_ID")]), by="sequence", all.x=T)
+# 
+# piRNA_stat_m$ping_pong <- ifelse(piRNA_stat_m$sequence %in% pp_pis_pilfer & piRNA_stat_m$group=="Pilfer", "yes","no")
+# piRNA_stat_m$ping_pong <- ifelse(piRNA_stat_m$sequence %in% pp_pis_relaxed & piRNA_stat_m$group=="relaxed", "yes",piRNA_stat_m$ping_pong )
+# 
+# #if it was found in any sample,in that filtering condition
+# 
+# piRNA_stat_un_m <- merge(piRNA_stat_un_m, unique(piRNA_stat_m[,c("no_loc_ID", "ping_pong")]), by="no_loc_ID", all.x=T)
+# 
+# #TEs
+# TE_pi_df$dups <- duplicated(TE_pi_df$pi_ID)
+# TE_pi_df <- TE_pi_df %>% group_by(pi_ID) %>% summarize(TE_annotation = unique(V7))
+# TE_pi_df <- TE_pi_df %>% group_by(pi_ID) %>% summarize(TE_annotation = paste0(TE_annotation, collapse= "; "))
+# piRNA_stat_m <- merge(piRNA_stat_m, TE_pi_df, by="pi_ID", all.x = T)
+# 
+# TE_lim <- piRNA_stat_m %>% group_by(sequence) %>% summarize(TE_annotation = unique(TE_annotation))
+# TE_lim <- TE_lim %>% group_by(sequence) %>% summarize(TE_annotation = paste0(TE_annotation,collapse = "; "))
+# 
+# piRNA_stat_un_m <- merge(piRNA_stat_un_m, TE_lim, by="sequence", all.x=T)
+# 
+# #finally add TE counts to num pis
+# num_TE <- TE_pi_df_un %>% group_by(group_ID) %>% summarize(number_of_TE_piRNAs = n(), mean_TE_piRNA_counts =  mean(V5), total_TE_piRNA_counts = sum(V5), mean_TE_piRNA_counts = mean(counts_norm),  median_TE_piRNA_length = median(length))
+# 
+# pi_num <- merge(pi_num, num_TE, by= "group_ID",all.x=T)
+# pi_num$percentage_TE_piRNAs <- (pi_num$number_of_TE_piRNAs/ pi_num$number_of_piRNAs)*100
+
+#write.table(pi_num, "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/piRNA_summary_stats.txt",col.names = T,row.names = F, quote = F,sep = "\t")
+# 
+# piRNA_stat_m$pi_ID <- NULL
+# piRNA_stat_m$no_loc_ID<- NULL
+# colnm <- colnames(piRNA_stat_m)
+# colnm <- c("chr", "start", "end", "counts","strand", colnm[6:18])
+# piRNA_stat_m <- setNames(piRNA_stat_m, colnm)
+# piRNA_stat_m <- piRNA_stat_m[,c(15, 11, 9, 8, 1:3, 5, 4, 10, 6:7, 12:14, 16:18)]
+# 
+# #write.table(piRNA_stat_m, "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/piRNA_information_with_location.txt",col.names = T,row.names = F, quote = F,sep = "\t")
+# 
+# piRNA_stat_un_m$no_loc_ID <- NULL
+# piRNA_stat_un_m <- piRNA_stat_un_m[,c(10, 2:4,6:7,1, 5, 8:9, 11:12)]
+# colnames(piRNA_stat_un_m) <-gsub("reads", "counts", colnames(piRNA_stat_un_m))
+
+#write.table(piRNA_stat_un_m, "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/piRNA_information_without_location_unique.txt",col.names = T,row.names = F, quote = F,sep = "\t")
+
+piRNA_stat_un_m <- read.table("/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/piRNA_information_without_location_unique.txt", header = T, sep = "\t")
+Pilfer <- piRNA_stat_un_m %>% filter(group =="Pilfer") %>% {unique(.[,c("sequence", "piRNA_ID")])}
+Pilfer_pis <- unique(DNAStringSet(Pilfer$sequence))
+names(Pilfer_pis) <- Pilfer$piRNA_ID
+#writeXStringSet(Pilfer_pis, "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/Pilfer_piRNAs.fa", format = "fasta")
+
+
+relaxed <- piRNA_stat_un_m %>% filter(group =="relaxed") %>% {unique(.[,c("sequence", "piRNA_ID")])}
+relaxed_pis <- unique(DNAStringSet(relaxed$sequence))
+names(relaxed_pis) <- relaxed$piRNA_ID
+#writeXStringSet(relaxed_pis, "/Volumes/Kathryn/BRC_Kip/sRNAseq/pilfer/relaxed_piRNAs.fa", format = "fasta")
+
+```
+
