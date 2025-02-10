@@ -1,0 +1,205 @@
+---
+title: "Kip_sRNA_miRDeep"
+author: "KRG"
+date: "5/31/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tools)
+library(Rfastp)
+library(CLIPflexR)
+library(Biostrings)
+library(stringr)
+```
+
+## Process sRNA seq reads, map, run miRDeep
+
+```{r cars}
+baseDir <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/Kronauer-KL-12321_2022_05_17"
+fastq1<- list.files(path = file.path(baseDir), pattern = "*R1_001.fastq.gz$", full.names = TRUE)
+# fastq2 <- list.files(path = file.path(baseDir), pattern = "*R2_001.fastq.gz$", full.names = TRUE)
+# all.equal(length(fastq1),length(fastq2))
+
+#checking into rfastp
+# fq <- vector(mode = "list", length = length(fastq1))
+# for (i in 1:length(fastq1)){
+# rfastp(read1 = fastq1[i], read2 = fastq2[i], outputFastq = paste0("/Volumes/Kathryn/BRC_Kip/sRNAseq/Kronauer-KL-12321_2022_05_17/rfastp/pe_", gsub("_R1_001.fastq.gz|_R2_001.fastq.gz", "", basename(fastq1[i]))), merge = T, mergeOut = paste0("/Volumes/Kathryn/BRC_Kip/sRNAseq/Kronauer-KL-12321_2022_05_17/rfastp/merge_", gsub("_R1_001.fastq.gz|_R2_001.fastq.gz", ".fastq.gz", basename(fastq1[i]))),
+# thread = 4)}
+
+# cannot generate merged file this way, just got stats and then QC'd and trimmed manually
+
+#decompress fastq/gz's
+tofilt<- vector(mode = "list", length = length(fastq1))
+for (i in 1:length(fastq1)) {
+  tofilt[i] <- decompress(fastq1[i])
+}
+
+#quality filter (fastx)
+tofilt <- unlist(tofilt)
+QF  <- lapply(tofilt, fastq_quality_filter)
+
+#clip adaptor (NEXTFLEX Small RNA-Seq Kit v3 manual)
+clipped <- vector(mode = "list", length = length(QF))
+for (i in 1:length(QF)) {
+clipped[i] <- fastx_clipper(QF[i], adapter = "TGGAATTCTCGGGTGCCAAGG", length = 23, verbose=T, qEncoding = 33)}
+clipped <- unlist(clipped)
+
+#trim 4 nt from either side (NEXTFLEX Small RNA-Seq Kit v3 manual)
+x <- vector(mode = "list", length = length(clipped))
+names(x) <- clipped
+for (i in 1:length(clipped)){
+x[[i]] <- readDNAStringSet(clipped[i], format = "fastq")
+x[[i]] <- narrow(x[[i]], start =5, end = width(x[[i]])-4)
+names(x[[i]]) <- gsub(" ","",names(x[[i]]) )
+writeXStringSet(x[[i]], gsub("clip.fastq", "clip_trim.fasta", names(x[i])),  format = "fasta")
+}
+
+#map processed reads using miRDeep mapper.pl
+
+mapper <- function(mFA){
+  genome <- "/Volumes/Kathryn/BRC_Kip/Obir_v5.4"
+  arf <- paste0("/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep/get_bam/", gsub("_L001_R1_001_clip_trim.fasta", "_R1.arf", basename(mFA)))
+  fa <- paste0("/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep/get_bam/", gsub("_L001_R1_001_clip_trim.fasta", "_R1_collapsed.fa", basename(mFA)))
+  cmd <- paste0("/Users/kathryn/mirdeep2_master/bin/mapper.pl ",mFA, " -c -j -m -l 18 -q -p ",
+                genome," -s ", fa, " -t ",
+                arf, " -v -u"
+  )
+  system(cmd,wait = T)
+  return(cmd)}
+
+clipdir <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/Kronauer-KL-12321_2022_05_17"
+tomap  <- dir(clipdir , pattern="clip_trim.fasta$", full.names = TRUE)
+
+d <- vector(mode = "list", length = length(tomap))
+for (i in 1:length(tomap)){
+  d[i] <- mapper(tomap[i])
+}
+
+#gives error through R but works in terminal
+# Please run the install.pl script first before using the miRDeep2 package
+# The install script is located in /Volumes/Kathryn/BRC_ so just do
+# 
+# cd /Volumes/Kathryn/BRC_
+# perl install.pl
+
+#map <- readDNAStringSet("/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep/QF_YoungLarvae_S2_R1_collapsed.fa" , nrec = -1L)
+#sum(as.integer(str_split_fixed(names(map), "x", 2)[,2])) #ok, so here the collapsed counts are 11481187 reads, but only 1512331 unique seqs, looking in bowtie log makes more sense, ~ 60% align, if allow mismatch get 5% more
+
+#run miRDeep2.pl
+mDir <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep"
+FA <- dir(mDir, pattern="collapsed.fa$", full.names = TRUE)
+
+#remove whitespaces from Obir genome
+g <- readDNAStringSet( "/Volumes/Kathryn/BRC_Kip/GCF_003672135.1_Obir_v5.4_genomic.fna", format = "fasta")
+names(g) <- str_split_fixed(names(g), " ", 2)[,1]
+writeXStringSet(g, "/Volumes/Kathryn/BRC_Kip/GCF_003672135.1_Obir_v5.4_genomic_fix.fna", format = "fasta")
+
+mirdeep <- function(mFA){
+  genome <- "/Volumes/Kathryn/BRC_Kip/GCF_003672135.1_Obir_v5.4_genomic_fix.fna"
+  files <- " /Users/kathryn/mirdeep2_master/dme_miRNAs_mature_fixed.fa "
+  cv <- gsub("_collapsed.fa",".arf",mFA)
+  log <- gsub("_collapsed.fa","_report.log",mFA)
+  cmd <- paste0("/Users/kathryn/mirdeep2_master/bin/miRDeep2.pl ",
+                mFA," ",
+                genome," ",
+                cv," none",
+                files,"none -z ", paste0("-", gsub("_R1_collapsed", "" ,file_path_sans_ext(basename(mFA)))),
+                "2>",log
+  )
+  system(cmd,wait = T)
+  return(cmd)
+}
+
+e <- vector(mode = "list", length = length(FA))
+for (i in 1:length(FA)) {
+  e[i] <-mirdeep(FA[i])
+}
+
+#gives error through R but works in terminal
+# usage: dirname path
+# Please run the install.pl script first before using the miRDeep2 package
+# 		The install script is located in  so just do
+# 
+# 		cd 
+# perl install.pl
+# 
+# 		 at /Users/kathryn/mirdeep2_master/bin/miRDeep2.pl line 1158.
+
+```
+
+## Generatng bams (bowtie output to mirdeep is bwt's, don't know how to convert)
+
+```{r pressure, echo=FALSE}
+#check into how to best generate bams, don't think I can directly mod miRDeep mapper.pl
+# #just testing out on one sample
+
+#get final arf that's input to mirdeep, as well as 2 temp arfs output by mapper.pl
+# arfdir <- "/Volumes/Kathryn/BRC_Kip/dir_mapper_seq_QF_4thInstarLarvae_S3_L001_R1_001_clip_trim.fasta_9399589363_17_06_2022_t_14_34_57" #temp files
+# arfs <- dir(arfdir ,pattern="*.arf$",full.names = TRUE)
+# arfs <- c(arfs, "/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep/QF_4thInstarLarvae_S3_R1.arf") #final arf no temp
+# arf_df <- lapply(arfs, read.delim, header=F, sep ="\t")
+# bed_df <- lapply(arf_df, '[', c(6, 8, 9, 1,5, 11))
+# names(bed_df) <- arfs
+# # for (i in 1:length(bed_df)) {
+# # bed_df[[i]]$V1 <- paste0(bed_df[[i]]$V1, ":", bed_df[[i]]$V5)}
+# for (i in 1:length(bed_df)) {
+# bed_df[[i]]$V5 <- rep(0, nrow(bed_df[[i]]))}
+# for (i in 1:length(bed_df)) {
+# bed_df[[i]] <- bed_df[[i]][order(bed_df[[i]]$V6, bed_df[[i]]$V8),]}
+# col.names <- c("chr", "start", "end", "name", "score", "strand")
+# for (i in 1:length(bed_df)) {
+# colnames(bed_df[[i]]) <- col.names}
+# for (i in 1:length(bed_df)) {
+# bed_df[[i]]$start <- bed_df[[i]]$start-1}
+# for (i in 1:length(bed_df)) {
+# bed_df[[i]]$id <- paste0(bed_df[[i]]$chr, ":", bed_df[[i]]$start, "_", bed_df[[i]]$end, ":", bed_df[[i]]$strand)}
+
+#pulled this command from mirdeep mapper logs and added sam option, reads_nr.fa are processed reads in temp dirs from miRDeep mapper.pl; want to compare with arfs above
+# bowtie -p 1 -f -n 1 -e 80 -l 18 -a -m 5 --best --strata -S /Volumes/Kathryn/BRC_Kip/Obir_v5.4   dir_mapper_seq_QF_4thInstarLarvae_S3_L001_R1_001_clip_trim.fasta_9399589363_17_06_2022_t_14_34_57/reads_nr.fa /Volumes/Kathryn/BRC_Kip/4thInstarLarvae.sam 2>bowtie_s.log 
+# bam <- asBam("/Volumes/Kathryn/BRC_Kip/QF_4thInstarLarvae_S3.sam", "/Volumes/Kathryn/BRC_Kip/QF_4thInstarLarvae_S3", indexDestination=TRUE)
+# bedfile <- bamtobed(bam)
+# bed <- read.delim(bedfile, header = F, sep="\t") #ok, by all methods nrow is the same
+# bed$V5 <- as.numeric(bed$V5)
+# bed <- bed[ order(bed$V1, bed$V2),]
+# colnames(bed) <- col.names
+# bed$id <- paste0(bed$chr, ":", bed$start, "_", bed$end, ":", bed$strand)
+
+#the bowtie sam>bam>bed has the same names/ranges as the mappings.arf, so this seems to be the raw output from bowtie
+# don't want to take input to mirdeep since is different than bowtie output
+
+#so run bowtie
+bowtie <- function(reads){
+  genome <- "/Volumes/Kathryn/BRC_Kip/Obir_v5.4"
+  samout <- gsub("dir_mapper_seq_","",reads)
+  samout <- gsub("_L001.*",".sam", samout)
+  log <- gsub(".sam","_bowtie.log",samout)
+  cmd <- paste0("/Users/Kathryn/bowtie-1.2.2-macos-x86_64/bowtie -p 1 -f -n 1 -e 80 -l 18 -a -m 5 --best --strata -S ",
+                genome," ",
+                reads," ",
+                samout,
+                " 2>",log
+  )
+  system(cmd,wait = T)
+  print(cmd)
+  return(samout)
+}
+
+readDir <- "/Volumes/Kathryn/BRC_Kip"
+preads <- list.dirs(path = file.path(readDir), full.names = TRUE)
+preads <- grep("dir_mapper_seq*", preads, value = T)
+preads <- paste0(preads, "/reads_nr.fa")
+
+bmap <- vector(mode = "list", length = length(preads))
+for (i in 1:length(preads)) {
+bmap[i] <- bowtie(preads[i])}
+bmap <- unlist(bmap)
+
+sams <- vector(mode = "list", length = length(bmap))
+for (i in 1:length(bmap)) {
+sams[i] <- asBam(bmap[i], gsub(".sam", "", bmap[i]), indexDestination=TRUE) }
+
+```
+
+

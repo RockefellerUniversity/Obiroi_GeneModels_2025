@@ -1,0 +1,668 @@
+---
+title: "miRDeep_table_figures"
+author: "KRG"
+date: "2022-07-22"
+output: 
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(Biostrings)
+library(stringr)
+library(data.table)
+library(dplyr)
+library(BiocParallel)
+library(matrixStats)
+library(tidyverse)
+library(eulerr)
+library(grid)
+library(gridExtra)
+```
+
+## First read in miRDeep csvs, add shared seeds from known miRNAs
+
+### filtered = positive miRDeep2 score, est ~7.5 fold signal-to-noise in read mapping AND either share 6mer seed with known miRNA from D. melanogaster, A. mellifera, B. mori, or T. castaneum OR have significant randfold p-value for precursor folding
+
+### for O. biroi miRNAs that share a seed with a known miRNA, in the case that multiple known miRNAs share a seed, one is taken as an "example miRNA." Species names are preserved since other species' seeds may not be named consistently, i.e. dme-miR-1 and bmo-miR-1 may in fact be annotated with different seeds
+
+#### naming convention is:
+#### if O biroi miRNA doesn't share a 6mer seed with any known miRNA, seqeunces are grouped by 6mer seed into families and given a an identifier in the format "n#-[a-z]"; e.g. "n1-a" would be novel O biroi miRNA family 1 member a, "n1-b" would be novel O biroi miRNA family 1 member "b", where the two miRNAs differ in sequence but share a seed. Orphan miRNAs in this class are not assigned letter IDs,ie. n2 would be the sole member of its family. All O biroi members in the same family are given a letter or number in order of length of the seqeunce of the mature miRNA, ie the shortest would be "a" or "1", the next longest would be "b" or "2", and so forth. If mulltiple miRNAfamily members are the same length, the letter or number IDs are asssigned arbitarily. 
+
+#### if the O biri miRNA does share a seed with a known miRNA, it is named after the example miRNA. For miRNAs in the format "dme-miR-10-3p", if there are multiple family members, a letter is added to differentiate members of the family, i.e. "dme-miR-10a-3p", "dme-miR-10b-3p." Again, no letter indicates orphan miRNAs, and number or letter IDs for individual family members are set by length of the miRNA seqeunce. For miRNAs in the format "dme-miR-2a-3p" (which are part of a family in their species), if there are multiple family members, a letter is added to differentiate members of the family, i.e. "dme-miR-2a1-3p", "dme-miR-2a2-3p." Unfortunately, if the member is an orphan in O biroi, but not in its own species, you will not be able to differentiate whether the miRNA has multiple family members in O biroi or in its own species, ie. ame-miR-927a-5p or tca-miR-11618a-3-3p which has multiple members in A. mellifera but not in O biroi. Note that I am not sure where the naming convention of tca-miR-11618a-3-3p with the extra "-3" comes from in miRBase,there were a few examples of this. If the O biroi miRNA shares a seed with a known miRNA in this format with an extra hyphen and number, multiple family members are dealt with as above, ie. for dme-miR-2a-1-5p, the two members are dme-miR-2a-1a-5p dme-miR-2a-1b-5p.
+
+#### Because the naming conventions are confusing, I also grouped all O. biroi miRNAs by seed into families and assigned them an identifier not displaying any relationship to known miRNAs, in the format "Obi-miR-n#-[a-z]"; e.g. Obi-miR-1 or Obi-miR-2a, Obi-miR-2a, etc. Again, no letter indicates orphan miRNAs, and number or letter IDs for individual family members are set by length of the miRNA seqeunce. 
+
+## Next, filtered named miRNAs are reverse mapped to quantify miRNA abundance across all stages.
+
+#### Map filtered named miRNAs to 18-30nt small RNAseq reads with no mismatches or clipping with minimum seed length of 18 using bowtie2.
+
+#### In the case that multiple miRNAs map to the same read (eg auagagaauggugaacaacag and auagagaauggugaacaacaga are two O. biroi miRNAs that differ only by 1 nt in length, so could easily map to the same read), O. biroi miRNAs that share a seed with a known miRNA are prioritized. Next, if multiple novel miRNAs map to the same read, the read is assigned to the shortest miRNA
+
+## Number of miRNAs discovered per sample, unfiltered
+```{r message = F}
+Dir <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep"
+csv <- dir(Dir, pattern="*.csv",full.names = TRUE)
+novel <- lapply(csv, fread, header=TRUE, sep="\t", skip = 26,strip.white = TRUE, data.table = FALSE)
+names(novel) <- str_split_fixed(csv, "-", 2)[,2] %>% {str_split_fixed(., "_", 3)[,2]}
+lapply(novel, nrow) #104-155 miRNAs unfiltered
+for (i in 1:length(novel)){
+novel[[i]]$dups <- duplicated(novel[[i]]$`consensus mature sequence`)} #within group dups, have some, but not all read counts are the same - so filter based on homology/score/randfold and reverse map to get counts across libraries
+novel_df <- rbindlist(novel, idcol=TRUE)
+colnames(novel_df) <- gsub(" ", "_", colnames(novel_df))
+colnames(novel_df) <- gsub("-", "_", colnames(novel_df))
+
+#est signal to noise with score of 0 and above
+# sig_n <- lapply(csv, fread, header=TRUE, sep="\t",strip.white = TRUE, data.table = FALSE)
+# names(sig_n) <- str_split_fixed(csv, "-", 2)[,2] %>% {str_split_fixed(., "_", 3)[,2]}
+# sig_n <- rbindlist(sig_n, idcol = T)
+# mean(subset(sig_n$`estimated signal-to-noise`, sig_n$`miRDeep2 score`==0)) #av = ~7.93 signal to noise 
+
+#all >=0 already
+
+#need to add homology to miRBase species - Bombyx mori = bmo, Tribolium castaneum = tca, apis mellifera = ame
+miR_base <- readRNAStringSet("/Users/kathryn/mirdeep2_master/mature_r22.1.fa", format = "fasta", nrec = -1L) #Release 22.1
+#miR <- DNAStringSet(miR_base)
+#writeXStringSet(miR, "/Users/kathryn/mirdeep2_master/mature_r22.1_DNA.fa", format = "fasta")
+spe <- unique(paste0(str_split_fixed(names(miR_base), " ", 5)[,3], "_", str_split_fixed(names(miR_base), " ", 5)[,4]))
+search <- c("vitripennis", "burchellii", "mori", "castaneum", "mellifera", "saltator", "echinatior", "invicta", "humile", "floridanus", "melanogaster")
+search <- paste0(search, collapse = "|")
+# spe[grepl(search, spe)]
+# names(miR_base)[grepl(search, names(miR_base)) ]
+i_miR <- miR_base[grepl("bmo|tca|ame|nvi|dme", names(miR_base)), ]
+i_miR_seeds <- subseq(i_miR , start=2, end=NA, width=6)
+names(i_miR_seeds) <- str_split_fixed(names(i_miR_seeds), " ", 2)[,1]
+
+novel_df$seed <- substring(novel_df$consensus_mature_sequence, 2, 7)
+i_miR_df <- as.data.frame(i_miR_seeds)
+i_miR_df$x <- tolower(i_miR_df$x)
+i_miR_df$known_miRNAs_same_seed <- row.names(i_miR_df)
+
+i_miR_df <- i_miR_df %>% group_by(x) %>% mutate(known_miRNAs_same_seed  = paste0(known_miRNAs_same_seed , collapse = ":"))
+
+i_miR_df <- unique(i_miR_df)
+
+novel_df <- merge(novel_df, i_miR_df, by.x ="seed", by.y = "x", all.x=T)
+
+novel_df_miRDeep <- novel_df %>% group_by(.id, consensus_mature_sequence) %>% filter(significant_randfold_p_value=="yes" | !is.na(known_miRNAs_same_seed)) %>% as.data.frame(.)
+
+novel_df_miRDeep2 <-   unique(novel_df_miRDeep[,c("seed", ".id",  "consensus_mature_sequence", "known_miRNAs_same_seed","mature_read_count"  )])
+
+novel_df_filt <- novel_df_miRDeep2 %>% group_by(.id, consensus_mature_sequence) %>% summarize(known_miRNAs_same_seed = first(known_miRNAs_same_seed), av_read_count = mean(mature_read_count), sum_read_count = sum(mature_read_count))
+
+novel_df_filt_rn <- as.data.frame(novel_df_filt) %>% group_by(consensus_mature_sequence) %>% summarize(known_miRNAs_same_seed = first(known_miRNAs_same_seed))
+novel_df_filt_rn$seed <- substring(novel_df_filt_rn$consensus_mature_sequence, 2, 7)
+#have to d something like, if no known, then group by seed and give each  unique number
+n_fam <- novel_df_filt_rn %>% filter(is.na(known_miRNAs_same_seed)) %>% group_by(seed) %>% mutate(ID = cur_group_id())###
+novel_df_filt_rn <- novel_df_filt_rn[!is.na(novel_df_filt_rn$known_miRNAs_same_seed),]
+novel_df_filt_rn$ID <-NA
+novel_df_filt_rn <- rbind(novel_df_filt_rn, n_fam )
+novel_df_filt_rn <- novel_df_filt_rn %>% group_by(known_miRNAs_same_seed) %>% mutate(count = sequence(n()))###
+
+novel_df_filt_rn$example_miRNA <- str_split_fixed(novel_df_filt_rn$known_miRNAs_same_seed, ":", 2)[,1]
+novel_df_filt_rn$name <- ifelse(!grepl("miR", novel_df_filt_rn$known_miRNAs_same_seed), paste0("n", novel_df_filt_rn$ID), novel_df_filt_rn$example_miRNA)
+
+novel_df_filt_rn <- novel_df_filt_rn %>% group_by(seed) %>% arrange(nchar(consensus_mature_sequence)) %>% mutate(rank = sequence(n()))
+d <- str_split_fixed(novel_df_filt_rn$example_miRNA, "-",4)[,3]
+d <- grep("[a-z]", d, value = T)
+d <- grep("iab|5p|3p", d, value = T, invert = T)
+d <- paste0(d, collapse = "|")
+novel_df_filt_rn$rank <- ifelse(!grepl(d, novel_df_filt_rn$example_miRNA), chartr("1234567", "abcdefg",  novel_df_filt_rn$rank), novel_df_filt_rn$rank)
+
+novel_df_filt_rn$name<- ifelse(is.na(novel_df_filt_rn$known_miRNAs_same_seed), paste0("n", novel_df_filt_rn$ID), paste0(novel_df_filt_rn$name))
+multi <- subset(novel_df_filt_rn$name, duplicated(novel_df_filt_rn$name))
+novel_df_filt_rn$new_name <- str_split_fixed(novel_df_filt_rn$name,  "-", 4)[,4] 
+#here# tofix <- novel_df_filt_rn[grepl("-", novel_df_filt_rn$new_name),]
+novel_df_filt_rn$new_name <- ifelse( grepl("-", novel_df_filt_rn$new_name), str_split_fixed(novel_df_filt_rn$new_name,  "-", 2)[,2], novel_df_filt_rn$new_name)
+novel_df_filt_rn$name <- gsub("-3p|-5p", "", novel_df_filt_rn$name)
+novel_df_filt_rn$family <- paste0("fam-", novel_df_filt_rn$name, "-", novel_df_filt_rn$new_name)
+novel_df_filt_rn$family <- gsub("-$","", novel_df_filt_rn$family)
+novel_df_filt_rn$name <- ifelse(novel_df_filt_rn$name %in% multi, paste0(novel_df_filt_rn$name, novel_df_filt_rn$rank), paste0(novel_df_filt_rn$name))
+multi <- grep("5p|3p",  multi, value=T)
+novel_df_filt_rn$name <- ifelse(novel_df_filt_rn$example_miRNA %in% multi, paste0(novel_df_filt_rn$name, novel_df_filt_rn$rank), paste0(novel_df_filt_rn$name))
+
+novel_df_filt_rn$name <- ifelse(grepl("3p|5p", novel_df_filt_rn$new_name), paste0(novel_df_filt_rn$name, "-", novel_df_filt_rn$new_name), novel_df_filt_rn$name)
+
+
+novel_df_filt_rn$new_name <- NULL
+novel_df_filt_rn$count <-NULL
+
+
+novel_df_filt_rn$name <- gsub("dme-miR-2a-11-5p", "dme-miR-2a-1a-5p", novel_df_filt_rn$name )
+novel_df_filt_rn$name <- gsub("dme-miR-2a-12-5p", "dme-miR-2a-1b-5p", novel_df_filt_rn$name )
+                              
+novel_df_filt_rn <- novel_df_filt_rn  %>% group_by(seed) %>% mutate(Obiroi_name = cur_group_id())###
+novel_df_filt_rn$Obiroi_name <- paste0("obi-miR-", novel_df_filt_rn$Obiroi_name)
+novel_df_filt_rn$Obiroi_family <- paste0("fam-", novel_df_filt_rn$Obiroi_name)
+multi <- subset(novel_df_filt_rn$Obiroi_name, duplicated(novel_df_filt_rn$Obiroi_name))
+novel_df_filt_rn$Obiroi_name<- ifelse(novel_df_filt_rn$Obiroi_name %in% multi, paste0(novel_df_filt_rn$Obiroi_name, novel_df_filt_rn$rank), paste0(novel_df_filt_rn$Obiroi_name))
+
+novel_df_filt_rn$rank<-NULL
+
+#deal with bantam
+novel_df_filt_rn$name <- gsub("dme-bantam", "dme-bantam-3p", novel_df_filt_rn$name )
+novel_df_filt_rn$family<- gsub("fam-dme-bantam", "fam-dme-bantam-3p", novel_df_filt_rn$family )
+
+miRNA_fasta <- RNAStringSet(unique(novel_df_filt_rn$consensus_mature_sequence))
+names(miRNA_fasta) <- novel_df_filt_rn$name
+miRNA_fastaD <- DNAStringSet(miRNA_fasta)
+
+#writeXStringSet(miRNA_fastaD, "/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep/filtered_miRNAs.fa", format = "fasta")
+
+
+O_miRNA_fasta <- RNAStringSet(unique(novel_df_filt_rn$consensus_mature_sequence))
+names(O_miRNA_fasta) <- novel_df_filt_rn$Obiroi_name
+O_miRNA_fastaD <- DNAStringSet(O_miRNA_fasta)
+
+#writeXStringSet(O_miRNA_fastaD, "/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep/filtered_miRNAs_obi_names.fa", format = "fasta")
+
+#non-significant p-value of the RNA minimum free energy of folding randomization test = Randfold
+
+#merge renamed seeds/fams/homology with miRDeep info
+novel_df_miRDeep_w <- merge(novel_df_miRDeep, novel_df_filt_rn[,c("consensus_mature_sequence", "name", "family", "Obiroi_name", "Obiroi_family")], by="consensus_mature_sequence", all.x= T)
+novel_df_miRDeep_w$estimated_probability_that_the_miRNA_candidate_is_a_true_positive <- NULL
+#write.table(novel_df_miRDeep_w, "/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep/miRDeep2_output_cat.txt", col.names = T, row.names = F, quote = F, sep = "\t")
+
+miRD_stat  <- novel_df_miRDeep %>% group_by(precursor_coordinate, consensus_mature_sequence, consensus_star_sequence) %>% summarise(miRDeep2_provisional_ids = paste0(unique(provisional_id), collapse = ":"), miRDeep2_score_range = paste0(min(miRDeep2_score),"-", max(miRDeep2_score)), consensus_precursor_sequence = first(consensus_precursor_sequence), significant_randfold_p_value = paste0(unique(significant_randfold_p_value), collapse = ":"))
+
+miRD_stat$significant_randfold_p_value <- ifelse(grepl("yes", miRD_stat$significant_randfold_p_value), paste0("yes"), paste0("no"))
+
+miRD_stat <- unique(miRD_stat)
+
+miRD_stat_w <- merge(miRD_stat, novel_df_filt_rn[,c("consensus_mature_sequence", "name", "family", "Obiroi_name", "Obiroi_family")], by="consensus_mature_sequence", all.x= T)
+#write.table(miRD_stat_w, "/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep/miRDeep2_summary_unique_hairpins.txt", col.names = T, row.names = F, quote = F, sep = "\t")
+
+to_w <- novel_df_miRDeep %>% group_by(.id, consensus_mature_sequence) %>% summarise(miRDeep2_av_total_read_count = mean(total_read_count), miRDeep2_av_mature_read_count= mean(mature_read_count), miRDeep2_av_loop_read_count= mean(loop_read_count), miRDeep2_av_star_read_count =mean(star_read_count))
+
+
+to_w$m <- paste0(to_w$consensus_mature_sequence, ":", to_w$.id)
+
+clipdir <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/Kronauer-KL-12321_2022_05_17"
+# torevmap  <- dir(clipdir , pattern="clip_trim.fasta$", full.names = TRUE)
+# rmap <- vector(mode = "list", length = length(torevmap))
+# for (i in 1:length(torevmap)){
+# rmap[i] <- revmap_count(torevmap[i], knownMiRNAs = "/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep/filtered_miRNAs.fa", length_min=18, length_max=30, overwrite =T,removedups = T, verbose = T)} #moved processed files to revmap dir, need to mod revmap counts further with an outdir to specify since overwites - also did not collapse pre revmap, this is what I did with clip but run past tom cause don't know for sRNA seq
+
+
+
+
+#lose some of miRNAs discovered in revmap, prob dedup step?
+#aaauugacucuaguaggga, dme-miR-929a
+
+#get duplicates allowed, to merge
+revmap_count4 <- function(bed, verbose=T){
+   dedup <- lapply(bed ,read.delim,  header = F, sep = "\t")
+  names(dedup) <- bed
+count <- lapply(dedup, function(x) x %>% dplyr::group_by(V4) %>% dplyr::summarize(count=dplyr::n()))
+  count_stat <- Reduce(function(x, y) merge(x, y, by = "V4", all = TRUE), count )
+  count_stat[is.na(count_stat)] <- 0
+  col.names<- basename(unlist(bed))
+  col.names <- c("miRNA", col.names)
+  count_stat <- setNames(count_stat, col.names)
+  write.table(count_stat,paste0(bed, "_revmap_counts_dups_allowed.txt"), col.names = TRUE, row.names= FALSE, sep = "\t", quote = F)
+  if(verbose) message("done")
+   p <- paste0(bed, "_revmap_counts.txt")
+    return(p)
+}
+
+# bed_dir <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/Kronauer-KL-12321_2022_05_17/revmap"
+# toc  <- dir(bed_dir, pattern="trimsta.bed$", full.names = TRUE)
+# c <- vector(mode = "list", length = length(toc ))
+# for (i in 1:length(c)){
+#   c[i] <- revmap_count4(toc[i])
+# }
+
+#get table in long form to merge
+count_dir <- "/Volumes/Kathryn/BRC_Kip/sRNAseq/Kronauer-KL-12321_2022_05_17/revmap"
+rmap2 <- dir(count_dir  , pattern="dups_allowed.txt$", full.names = TRUE)
+m_counts_d <- lapply(rmap2, read.delim, header=T, sep="\t")
+
+names(m_counts_d) <- gsub("/Volumes/Kathryn/BRC_Kip/sRNAseq/Kronauer-KL-12321_2022_05_17/revmap/QF_", "", rmap2)
+names(m_counts_d) <- str_split_fixed(names(m_counts_d), "_", 2)[,1]
+m_counts_df_d <- Reduce(function(x, y) merge(x, y, by = "miRNA", all = TRUE), m_counts_d)
+
+for (i in 1:length(m_counts_d)){
+  colnames(m_counts_d[[i]])[2]<- "reverse_mapped_counts"
+}
+
+m_counts_wd <- rbindlist(m_counts_d, idcol = T)
+m_counts_wd$miRNA <- gsub("bantam", "bantam-3p", m_counts_wd$miRNA)
+
+m_counts_wd <- merge(m_counts_wd, novel_df_filt_rn[,c("consensus_mature_sequence", "name")], by.x ="miRNA", by.y="name", all.x= T)
+
+m_counts_wd$m <- paste0(m_counts_wd$consensus_mature_sequence , ":", m_counts_wd$.id)
+m_counts_wd$consensus_mature_sequence <- NULL
+
+all_count_stat <- merge(m_counts_wd, to_w ,  by = "m", all.x=T)
+all_count_stat$m <- NULL
+all_count_stat <- merge(all_count_stat, novel_df_filt_rn[,c("name", "family", "Obiroi_name", "Obiroi_family")], by.x ="miRNA",by.y="name", all.x= T)
+all_count_stat$.id.y <- NULL
+
+#write.table(all_count_stat, "/Volumes/Kathryn/BRC_Kip/sRNAseq/miRDeep/miRNA_read_counts.txt", col.names = T, row.names = F, quote = F, sep = "\t")
+
+
+##deduped ones
+rmap <- dir(count_dir , pattern="revmap_counts.txt$", full.names = TRUE)
+m_counts <- lapply(rmap, read.delim, header=T, sep="\t")
+m_counts_df <- Reduce(function(x, y) merge(x, y, by = "miRNA", all = TRUE), m_counts)
+colnames(m_counts_df) <- gsub("QF_", "", colnames(m_counts_df))
+colnames(m_counts_df) <- str_split_fixed(colnames(m_counts_df), "_", 2)[,1]
+m_counts_df[is.na(m_counts_df)] <- 0
+m_counts_df$miRNA <- gsub("bantam", "bantam-3p", m_counts_df$miRNA)
+m_counts_df2 <- m_counts_df[,-1]
+rownames(m_counts_df2) <- m_counts_df[,1]
+
+# myCounts <- edgeR::cpm(m_counts_df2)
+# 
+# pheatmap:::pheatmap(t(myCounts) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 3, main = "")
+
+m_counts_df3 <- m_counts_df2 + 1
+myCounts2 <- edgeR::cpm(m_counts_df3)
+# pheatmap:::pheatmap(t(myCounts2) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth =3, main = "")
+
+# my_col <- data.frame(family = novel_df_filt_rn$family, miRNA = novel_df_filt_rn$name)
+# 
+# my_col2 <- my_col[my_col$miRNA %in% row.names(myCounts2),] 
+# 
+# row.names(my_col2) <-my_col2$miRNA
+# 
+# my_col2$miRNA <- NULL
+
+# pheatmap:::pheatmap(t(log2(myCounts2)) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 7, cellheight = 6, cellwidth = 4, main = "Individual miRNAs (log2 expression)") # ,annotation_col = my_col2)
+```
+  
+## Heatmaps for individual filtered miRNAs 
+
+#### see definition of filtered above, showing log2(expression) in cpm (counts per million) for all heatmaps
+```{r filtered_miRNAs_expression, fig.height = 13.5, fig.width = 13.5, fig.align = "center", message = F, dev='pdf'}
+pheatmap:::pheatmap(log2(myCounts2) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 4, cellwidth = 8, main = "Individual miRNAs (log2 cpm)")#, annotation_row = my_col2)
+
+#grid.arrange(grobs = list(p1[[4]]), top = textGrob("\nIndividual miRNAs (log2 expression)\n" ,gp=gpar(fontsize=15,fontface = "bold")))
+
+#can also just get top varying miRNAs:
+# max <- as.data.frame(myCounts2) %>%
+#   rownames_to_column() %>%
+#   pivot_longer(cols = -rowname) %>%
+#   group_by(name) %>%
+#   slice_max(value, n = 10 , with_ties = FALSE)
+# 
+# min<- as.data.frame(myCounts2) %>%
+#   rownames_to_column() %>%
+#   pivot_longer(cols = -rowname) %>%
+#   group_by(name) %>%
+#   slice_min(value, n = 10 , with_ties = FALSE)
+
+# top <- unique(c(min$rowname, max$rowname))
+# 
+# pheatmap:::pheatmap(t(log2(myCounts2[top,])) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "")
+```
+
+#### To simplify, we can consider only the 50 most variable miRNAs across different life stages 
+
+#### 50 most variable in terms of expression in cpm
+```{r filtered_miRNAs_expression_topvar, fig.height = 8, fig.width = 8,  message = F, dev='pdf'}
+
+topVar <-  head(order(rowVars(myCounts2), decreasing=TRUE), 50)
+
+pheatmap:::pheatmap(t(log2(myCounts2[topVar,])) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "50 most variable individual miRNAs (log2 cpm)")
+
+#filter so only miRNAs with counts above threshold; 1 hi peak
+m_counts_df2$nhi <- apply(m_counts_df2, 1, function(x) length(which(x>=10)))
+m_counts_df2$BC <- apply(m_counts_df2[,1:6], 1, function(x) length(which(x>0)))
+# m_counts_df4 <- m_counts_df2[m_counts_df2$nhi > 0,]
+# m_counts_df4 <- m_counts_df4[,1:6]+1
+# myCounts3 <- edgeR::cpm(m_counts_df4)
+# pheatmap:::pheatmap(t(log2(myCounts3)) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 4, main = "")
+
+# m_counts_df5 <- m_counts_df2[m_counts_df2$BC > 1,]
+# m_counts_df5 <- m_counts_df5[,1:6]+1
+# myCounts4 <- edgeR::cpm(m_counts_df5)
+# pheatmap:::pheatmap(t(log2(myCounts4)) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 3, main = "")
+```
+
+## Heatmaps for individual filtered miRNAs, with additional expression filtering
+
+#### Expression filtering: require that the miRNA has a raw read count of at least 10 in at least one sample (life stage) and that the miRNA is present in at least 2 samples.  
+```{r filtered_miRNAs_expression_stringent, fig.height =10.5, fig.width = 10.5, fig.align = "center", message = F, dev='pdf'}
+m_counts_df_filt <- m_counts_df2[m_counts_df2$BC > 1 & m_counts_df2$nhi > 0,]
+m_counts_df6 <- m_counts_df_filt[,1:6]+1
+myCounts5 <- edgeR::cpm(m_counts_df6)
+# pheatmap:::pheatmap(t(log2(myCounts5)) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 4, main = "Individual miRNAs, filtered by expression (log2 expression)")
+
+pheatmap:::pheatmap(log2(myCounts5) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 4, cellwidth = 8, main = "Individual miRNAs, filtered by expression (log2 expression)")
+# 
+# max <- as.data.frame(myCounts5) %>%
+#   rownames_to_column() %>%
+#   pivot_longer(cols = -rowname) %>%
+#   group_by(name) %>%
+#   slice_max(value, n = 10 , with_ties = FALSE)
+# 
+# min<- as.data.frame(myCounts5) %>%
+#   rownames_to_column() %>%
+#   pivot_longer(cols = -rowname) %>%
+#   group_by(name) %>%
+#   slice_min(value, n = 10 , with_ties = FALSE)
+
+# top <- unique(c(min$rowname, max$rowname))
+# 
+# pheatmap:::pheatmap(t(log2(myCounts5[top,])) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "")
+```
+
+```{r filtered_miRNAs_expression_stringent_topvar, fig.height =8, fig.width = 8,  message = F,dev='pdf'}
+topVar<-  head(order(rowVars(myCounts5), decreasing=TRUE), 50)
+
+pheatmap:::pheatmap(t(log2(myCounts5[topVar,])) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "50 most variable individual miRNAs, filtered by expression (log2 expression)")
+
+#compare with miRDeep average vals
+novel_df_filt <- merge(novel_df_filt, novel_df_filt_rn[,c("consensus_mature_sequence", "name", "family")], by="consensus_mature_sequence", all.x= T)
+
+# miRDeep_av <- reshape2::dcast(novel_df_filt, name + family ~ .id, value.var = "av_read_count")
+# 
+# miRDeep_av_mat <- miRDeep_av
+# rownames(miRDeep_av_mat) <- miRDeep_av_mat$name
+# miRDeep_av_mat[is.na(miRDeep_av_mat)] <- 0
+# my_miRDeep_Counts <- edgeR::cpm(miRDeep_av_mat[,c(3:8)])
+# 
+# pheatmap:::pheatmap(t(my_miRDeep_Counts) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 3, main = "")
+# 
+# miRDeep_av_mat2 <- miRDeep_av_mat[,c(3:8)]+1
+# 
+# my_miRDeep_Counts2 <- edgeR::cpm(miRDeep_av_mat2 )
+# 
+# pheatmap:::pheatmap(t(my_miRDeep_Counts2) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 3, main = "")
+# 
+# pheatmap:::pheatmap(t(log2(my_miRDeep_Counts2)) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 3, main = "")
+# 
+# #compare miRDeep with filtering, average:
+# miRDeep_av_mat$nhi <- apply(miRDeep_av_mat[,c(3:8)], 1, function(x) length(which(x>=10)))
+# miRDeep_av_mat$BC <- apply(miRDeep_av_mat[,3:8], 1, function(x) length(which(x>0)))
+# miRDeep_av_mat3 <- miRDeep_av_mat[miRDeep_av_mat$nhi > 0,]
+# miRDeep_av_mat4 <- miRDeep_av_mat3[,3:8]+1
+# my_miRDeep_Counts3 <- edgeR::cpm(miRDeep_av_mat4)
+# pheatmap:::pheatmap(t(log2(my_miRDeep_Counts3)) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 4, main = "")
+# 
+# miRDeep_av_mat5 <- miRDeep_av_mat[miRDeep_av_mat$BC > 1 & miRDeep_av_mat$nhi > 0,]
+# miRDeep_av_mat6 <- miRDeep_av_mat5[,3:8]+1
+# my_miRDeep_Counts4 <- edgeR::cpm(miRDeep_av_mat6)
+# pheatmap:::pheatmap(t(log2(my_miRDeep_Counts4 )) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 4, main = "")
+# 
+# max <- as.data.frame(my_miRDeep_Counts4) %>%
+#   rownames_to_column() %>%
+#   pivot_longer(cols = -rowname) %>%
+#   group_by(name) %>%
+#   slice_max(value, n = 10 , with_ties = FALSE)
+# 
+# min<- as.data.frame(my_miRDeep_Counts4) %>%
+#   rownames_to_column() %>%
+#   pivot_longer(cols = -rowname) %>%
+#   group_by(name) %>%
+#   slice_min(value, n = 10 , with_ties = FALSE)
+# top <- unique(c(min$rowname, max$rowname))
+# 
+# pheatmap:::pheatmap(t(log2(my_miRDeep_Counts4[top,])) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "")
+# 
+# topVar<-  head(order(rowVars(my_miRDeep_Counts4), decreasing=TRUE), 50)
+# 
+# pheatmap:::pheatmap(t(log2(my_miRDeep_Counts4[topVar,])) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "")
+
+##can try with sum as well and see if clustering is better- but at least with family it didn't make much difference at least in output heatmaps
+
+```
+
+## Heatmaps for filtered miRNA families by seed
+
+#### Average expression across miRNA family members to get mean cpm per family
+```{r filtered_miRNA_family_av_expression, fig.height = 12.2, fig.width = 12.2, fig.align='center', dev='pdf'}
+m_seed <- merge(m_counts_df2, novel_df_filt_rn, by.x =0, by.y ="name", all.x=T) 
+
+colnames(m_seed) <- gsub("4th", "fourth_", colnames(m_seed))  
+
+m_seed_mat <- m_seed[,c(15, 2:7)]
+
+av_m_seed <- m_seed_mat %>% group_by(family) %>%  summarise_if(is.numeric, mean, na.rm = TRUE) %>% as.data.frame(.)
+
+rownames( av_m_seed ) <-  av_m_seed [,1]
+av_m_seed$family <- NULL
+
+# myfamCounts <- edgeR::cpm(av_m_seed)
+# 
+# pheatmap:::pheatmap(t(myfamCounts ),
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 3, main = "")
+
+av_m_seed2 <- av_m_seed  + 1
+myfamCounts2 <- edgeR::cpm(av_m_seed2)
+# pheatmap:::pheatmap(t(myfamCounts2 ) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth =3, main = "")
+
+# pheatmap:::pheatmap(t(log2(myfamCounts2)) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 3, main = "miRNA families (mean log2 expression)")
+
+pheatmap:::pheatmap(log2(myfamCounts2) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight =4, cellwidth =8, main = "miRNA families (mean log2 cpm)")
+
+# max <- as.data.frame(myfamCounts2) %>%
+#   rownames_to_column() %>%
+#   pivot_longer(cols = -rowname) %>%
+#   group_by(name) %>%
+#   slice_max(value, n = 10 , with_ties = FALSE)
+# 
+# min<- as.data.frame(myfamCounts2) %>%
+#   rownames_to_column() %>%
+#   pivot_longer(cols = -rowname) %>%
+#   group_by(name) %>%
+#   slice_min(value, n = 10 , with_ties = FALSE)
+# top <- unique(c(min$rowname, max$rowname))
+
+# pheatmap:::pheatmap(t(log2(myfamCounts2[top,])) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "")
+```
+
+```{r filtered_miRNA_family_av_expression_topvar ,fig.height =8, fig.width =8, dev='pdf'}
+topVar<-  head(order(rowVars(myfamCounts2), decreasing=TRUE), 50)
+
+pheatmap:::pheatmap(t(log2(myfamCounts2[topVar,])) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "50 most variable miRNA families (mean log2 expression)")
+
+#filtering by family
+av_m_seed$nhi <- apply(av_m_seed, 1, function(x) length(which(x>=10)))
+av_m_seed$BC <- apply(av_m_seed[,1:6], 1, function(x) length(which(x>0)))
+# av_m_seed2 <- av_m_seed[av_m_seed$nhi > 0,]
+# av_m_seed2 <- av_m_seed2[,1:6]+1
+# myfamCounts3 <- edgeR::cpm(av_m_seed2)
+# 
+# pheatmap:::pheatmap(t(log2(myfamCounts3)) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 4, main = "")
+
+av_m_seed_filt <- av_m_seed[av_m_seed$BC > 1 & av_m_seed$nhi > 0,]
+av_m_seed3 <- av_m_seed_filt[,1:6]+1
+myfamCounts4 <- edgeR::cpm(av_m_seed3)
+
+# pheatmap:::pheatmap(t(log2(myfamCounts4)) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 4, main = "miRNA families, filtered by expression (mean log2 expression)")
+```
+
+## Heatmaps for filtered miRNA families by seed, with additional expression filtering
+
+#### Average expression by miRNA family with additional expression filtering as above for individual miRNAs
+```{r filtered_miRNA_family_av_expression_stringent, fig.height = 9.5, fig.width = 9.5, fig.align='center', dev='pdf'}
+pheatmap:::pheatmap(log2(myfamCounts4) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 4, cellwidth = 8, main = "miRNA families, filtered by expression (mean log2 expression)")
+
+# max <- as.data.frame(myfamCounts4) %>%
+#   rownames_to_column() %>%
+#   pivot_longer(cols = -rowname) %>%
+#   group_by(name) %>%
+#   slice_max(value, n = 10 , with_ties = FALSE)
+# 
+# min<- as.data.frame(myfamCounts4) %>%
+#   rownames_to_column() %>%
+#   pivot_longer(cols = -rowname) %>%
+#   group_by(name) %>%
+#   slice_min(value, n = 10 , with_ties = FALSE)
+# top <- unique(c(min$rowname, max$rowname))
+# 
+# pheatmap:::pheatmap(t(log2(myfamCounts4)[top,]) ,
+#                     cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "")
+```
+
+```{r filtered_miRNA_family_av_expression_stringent_topvar, fig.height = 8, fig.width = 8, dev='pdf'}
+topVar<-  head(order(rowVars(myfamCounts4), decreasing=TRUE), 50)
+
+pheatmap:::pheatmap(t(log2(myfamCounts4[topVar,])) ,
+                    cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "50 most variable miRNA families, filtered by expression (mean log2 expression)")
+```
+
+<!-- ## Group miRNAs into families by seed; sum expression -->
+
+<!-- ```{r} -->
+<!-- # sum_m_seed <- m_seed_mat %>% group_by(family) %>%  summarise_if(is.numeric, sum, na.rm = TRUE) %>% as.data.frame(.) -->
+
+<!-- rownames(sum_m_seed) <-  sum_m_seed[,1] -->
+<!-- sum_m_seed$family <- NULL -->
+
+<!-- myfam_sum <- edgeR::cpm(sum_m_seed) -->
+
+<!-- pheatmap:::pheatmap(t(myfam_sum ), -->
+<!--                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 3, main = "") -->
+
+<!-- sum_m_seed2 <- sum_m_seed  + 1 -->
+<!-- myfam_sum2 <- edgeR::cpm(sum_m_seed2) -->
+<!-- pheatmap:::pheatmap(t(myfam_sum2 ) , -->
+<!--                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth =3, main = "") -->
+
+<!-- pheatmap:::pheatmap(t(log2(myfam_sum2)) , -->
+<!--                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 3, main = "") -->
+
+<!-- max <- as.data.frame(myfam_sum2) %>% -->
+<!--   rownames_to_column() %>% -->
+<!--   pivot_longer(cols = -rowname) %>% -->
+<!--   group_by(name) %>% -->
+<!--   slice_max(value, n = 10 , with_ties = FALSE) -->
+
+<!-- min<- as.data.frame(myfam_sum2) %>% -->
+<!--   rownames_to_column() %>% -->
+<!--   pivot_longer(cols = -rowname) %>% -->
+<!--   group_by(name) %>% -->
+<!--   slice_min(value, n = 10 , with_ties = FALSE) -->
+<!-- top <- unique(c(min$rowname, max$rowname)) -->
+
+<!-- pheatmap:::pheatmap(t(log2(myfam_sum2[top,])) , -->
+<!--                     cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "") -->
+
+<!-- topVar<-  head(order(rowVars(myfam_sum2), decreasing=TRUE), 50) -->
+
+<!-- pheatmap:::pheatmap(t(log2(myfamCounts2[topVar,])) , -->
+<!--                     cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "") -->
+
+<!-- #filtering by family -->
+<!-- sum_m_seed$nhi <- apply(sum_m_seed, 1, function(x) length(which(x>=10))) -->
+<!-- sum_m_seed$BC <- apply(sum_m_seed[,1:6], 1, function(x) length(which(x>0))) -->
+<!-- sum_m_seed3 <- av_m_seed[av_m_seed$nhi > 0,] -->
+<!-- sum_m_seed3 <- sum_m_seed3[,1:6]+1 -->
+<!-- myfam_sum3 <- edgeR::cpm(sum_m_seed3) -->
+
+<!-- pheatmap:::pheatmap(t(log2(myfam_sum3)) , -->
+<!--                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 4, main = "") -->
+
+<!-- sum_m_seed4 <- av_m_seed[av_m_seed$BC > 1 & av_m_seed$nhi > 0,] -->
+<!-- sum_m_seed4  <- sum_m_seed4[,1:6]+1 -->
+<!-- myfam_sum4  <- edgeR::cpm(sum_m_seed4) -->
+<!-- pheatmap:::pheatmap(t(log2(myfamCounts4)) , -->
+<!--                     cluster_cols = T,cluster_rows = T, scale="none", fontsize = 6, cellheight = 6, cellwidth = 4, main = "") -->
+
+<!-- max <- as.data.frame(myfam_sum4) %>% -->
+<!--   rownames_to_column() %>% -->
+<!--   pivot_longer(cols = -rowname) %>% -->
+<!--   group_by(name) %>% -->
+<!--   slice_max(value, n = 10 , with_ties = FALSE) -->
+
+<!-- min<- as.data.frame(myfam_sum4) %>% -->
+<!--   rownames_to_column() %>% -->
+<!--   pivot_longer(cols = -rowname) %>% -->
+<!--   group_by(name) %>% -->
+<!--   slice_min(value, n = 10 , with_ties = FALSE) -->
+<!-- top <- unique(c(min$rowname, max$rowname)) -->
+
+<!-- pheatmap:::pheatmap(t(log2(myfam_sum4)[top,]) , -->
+<!--                     cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "") -->
+
+<!-- topVar<-  head(order(rowVars(myfam_sum4), decreasing=TRUE), 50) -->
+
+<!-- pheatmap:::pheatmap(t(log2(myfam_sum4[topVar,])) , -->
+<!--                     cluster_cols = T,cluster_rows = T, scale="none", fontsize =7, cellheight = 8, cellwidth = 8, main = "") -->
+<!-- ``` -->
+
+## Euler diagrams
+
+#### Mainly to show that most miRNAs or miRNA families are present in all life stages and expression filtering only removes miRNAs or miRNA families in only a subset of life stages - is too complex across 6 life stages to really see all the intersections
+
+```{r euler, fig.align='center', dev='pdf'}
+#individual, no expression/sample filtering
+ind_df <- as.data.frame(m_counts_df2[,1:6]) %>% 
+  rownames_to_column() %>%
+  pivot_longer(cols = -rowname) %>%
+  group_by(name) %>%
+  filter(value > 0)
+
+ind <- list(Eggs  = unique(subset(ind_df$rowname, ind_df$name=="Eggs")) , Prepupae = unique(subset(ind_df$rowname, ind_df$name=="Prepupae")), Pupae = unique(subset(ind_df$rowname, ind_df$name=="Pupae")), YoungLarvae = unique(subset(ind_df$rowname, ind_df$name=="YoungLarvae")), '4thInstarLarvae' = unique(subset(ind_df$rowname, ind_df$name=="4thInstarLarvae")), Adults = unique(subset(ind_df$rowname, ind_df$name=="Adults")))
+
+eul_ind <- euler(ind)
+grid.arrange(grobs = list(plot(eul_ind, quantities = T)), top = textGrob("\nIndividual miRNAs\n" ,gp=gpar(fontsize=15,fontface = "bold")))
+
+#individual, expression/sample filtering
+ind_df_sig <- as.data.frame(m_counts_df_filt[,1:6]) %>%
+  rownames_to_column() %>%
+  pivot_longer(cols = -rowname) %>%
+  group_by(name) %>%
+  filter(value > 0)
+
+ind_filt <- list(Eggs  = unique(subset(ind_df_sig$rowname, ind_df_sig$name=="Eggs")) , Prepupae = unique(subset(ind_df_sig$rowname, ind_df_sig$name=="Prepupae")), Pupae = unique(subset(ind_df_sig$rowname, ind_df_sig$name=="Pupae")), YoungLarvae = unique(subset(ind_df_sig$rowname, ind_df_sig$name=="YoungLarvae")), '4thInstarLarvae' = unique(subset(ind_df_sig$rowname, ind_df_sig$name=="4thInstarLarvae")), Adults = unique(subset(ind_df_sig$rowname, ind_df_sig$name=="Adults")))
+
+eul_ind_filt <- euler(ind_filt)
+grid.arrange(grobs = list(plot(eul_ind_filt, quantities = T)), top = textGrob("\nIndividual miRNAs, filtered by expression\n" ,gp=gpar(fontsize=15,fontface = "bold")))
+
+#family, no expression/sample filtering
+fam_df <- as.data.frame(av_m_seed[,1:6]) %>% 
+  rownames_to_column() %>%
+  pivot_longer(cols = -rowname) %>%
+  group_by(name) %>%
+  filter(value > 0)
+
+fam <- list(Eggs  = unique(subset(fam_df$rowname, fam_df$name=="Eggs")) , Prepupae = unique(subset(fam_df$rowname, fam_df$name=="Prepupae")), Pupae = unique(subset(fam_df$rowname, fam_df$name=="Pupae")), YoungLarvae = unique(subset(fam_df$rowname, fam_df$name=="YoungLarvae")), '4thInstarLarvae' = unique(subset(fam_df$rowname, fam_df$name=="fourth_InstarLarvae")), Adults = unique(subset(fam_df$rowname, fam_df$name=="Adults")))
+
+eul_fam <- euler(fam)
+grid.arrange(grobs = list(plot(eul_fam, quantities = T)), top = textGrob("\nmiRNA families\n" ,gp=gpar(fontsize=15,fontface = "bold"))) 
+
+#family, xpression/sample filterings
+fam_df_filt <- as.data.frame(av_m_seed_filt[,1:6]) %>% 
+  rownames_to_column() %>%
+  pivot_longer(cols = -rowname) %>%
+  group_by(name) %>%
+  filter(value > 0)
+
+fam_filt <- list(Eggs  = unique(subset(fam_df_filt$rowname, fam_df_filt$name=="Eggs")) , Prepupae = unique(subset(fam_df_filt$rowname, fam_df_filt$name=="Prepupae")), Pupae = unique(subset(fam_df_filt$rowname, fam_df_filt$name=="Pupae")), YoungLarvae = unique(subset(fam_df_filt$rowname, fam_df_filt$name=="YoungLarvae")), '4thInstarLarvae' = unique(subset(fam_df_filt$rowname, fam_df_filt$name=="fourth_InstarLarvae")), Adults = unique(subset(fam_df_filt$rowname, fam_df_filt$name=="Adults")))
+
+eul_fam_filt <- euler(fam_filt)
+grid.arrange(grobs = list(plot(eul_fam_filt, quantities = T)), top = textGrob("\nmiRNA families, filtered by expression\n" ,gp=gpar(fontsize=15,fontface = "bold")))
+
+```
