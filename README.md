@@ -1,6 +1,6 @@
 # OBiroi Gene models
 
-This repository contains code and input files for the creation of OBiroi gene models in ["Heterozygosity at a conserved candidate sex determination locus is associated with female development in the clonal raider ant"]([https://www.biorxiv.org/content/10.1101/2025.01.24.634795v1.abstract](https://doi.org/10.7554/eLife.106913))
+This repository contains code and input files for the creation of OBiroi gene models in ["Heterozygosity at a conserved candidate sex determination locus is associated with female development in the clonal raider ant"](https://doi.org/10.7554/eLife.106913)
 
 ## Short read data.
 
